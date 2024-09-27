@@ -16,16 +16,16 @@ class RACINGENGINEER_API ATester : public AActor
 	
 public:
 	UFUNCTION()
-	void CalculateTriangles(uint16 Size);
+	void CalculateTriangles(uint32 Size);
 	static FVector GetNormal(const FVector& V0, const FVector& V1, const FVector& V2);
-	void CalculateNormals(uint16 Size);
+	void CalculateNormals(uint32 Size);
 	UFUNCTION()
-	void CalculateVertices(uint16 Size);
+	void CalculateVertices(uint32 Size);
 	// Sets default values for this actor's properties
 	ATester();
 
 protected:
-	void AlterVertices(uint16 Size);
+	void AlterVertices(uint32 Size);
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
 

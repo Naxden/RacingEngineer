@@ -16,7 +16,7 @@ ATester::ATester()
 	ProceduralMesh->SetupAttachment(GetRootComponent());
 }
 
-void ATester::AlterVertices(const uint16 Size)
+void ATester::AlterVertices(const uint32 Size)
 {
 	const uint8* Pixels = nullptr;
 	FTexture2DMipMap* Mip = nullptr;
@@ -35,9 +35,9 @@ void ATester::AlterVertices(const uint16 Size)
 		Pixels = static_cast<uint8*>(Data);
 	}
 
-	for (uint16 y = 0; y < Size; y++)
+	for (uint32 y = 0; y < Size; y++)
 	{
-		for (uint16 x = 0; x < Size; x++)
+		for (uint32 x = 0; x < Size; x++)
 		{
 			double Offset;
 
@@ -98,6 +98,8 @@ void ATester::BeginPlay()
 	TArray<FProcMeshTangent> Tangents;
 	TArray<FProcMeshTangent> Tangents1;
 
+	const uint32 TimerStart = FPlatformTime::Cycles();
+
 	if (UseBuiltInNormalsAndTangents)
 	{
 		UKismetProceduralMeshLibrary::CalculateTangentsForMesh(Vertices, TriangleIndices, UV, Normals, Tangents);
@@ -106,6 +108,10 @@ void ATester::BeginPlay()
 	{	
 		CalculateNormals(Resolution);
 	}
+
+	const uint32 TimerStop = FPlatformTime::Cycles();
+	
+	UE_LOG(LogTemp, Warning, TEXT("Elapsed time %fms"), FPlatformTime::ToMilliseconds(TimerStop - TimerStart));
 
 	ProceduralMesh->CreateMeshSection(
 		0, 
@@ -120,18 +126,18 @@ void ATester::BeginPlay()
 	ProceduralMesh->SetMaterial(0, MeshMaterial);
 }
 
-void ATester::CalculateVertices(const uint16 Size)
+void ATester::CalculateVertices(const uint32 Size)
 {
-	const uint16 VertCount = Size * Size;
+	const uint32 VertCount = Size * Size;
 	Vertices.Empty(VertCount);
 	const TVector LocalScale = GetTransform().GetScale3D();
 	TVector LocalPosition = GetTransform().GetLocation();
 
 	LocalPosition -= UE::Math::TVector<double>((Size / 2) * VertSpacing, (Size / 2) * VertSpacing, 0);
 
-	for (uint16 y = 0; y < Size; y++)
+	for (uint32 y = 0; y < Size; y++)
 	{
-		for (uint16 x = 0; x < Size; x++)
+		for (uint32 x = 0; x < Size; x++)
 		{
 			Vertices.Add
 			(
@@ -146,53 +152,19 @@ void ATester::CalculateVertices(const uint16 Size)
 	}
 }
 
-//void CalculateTangentsAndNormals(const TArray<FVector>& Vertices, const TArray<uint32>& Indices) {
-//    for (int32 i = 0; i < Indices.Num(); i += 3) {
-//        FVertex& V0 = Vertices[Indices[i]];
-//        FVertex& V1 = Vertices[Indices[i + 1]];
-//        FVertex& V2 = Vertices[Indices[i + 2]];
-//
-//        FVector Edge1 = V1.Position - V0.Position;
-//        FVector Edge2 = V2.Position - V0.Position;
-//
-//        float DeltaU1 = V1.TexCoord.X - V0.TexCoord.X;
-//        float DeltaV1 = V1.TexCoord.Y - V0.TexCoord.Y;
-//        float DeltaU2 = V2.TexCoord.X - V0.TexCoord.X;
-//        float DeltaV2 = V2.TexCoord.Y - V0.TexCoord.Y;
-//
-//        float F = 1.0f / (DeltaU1 * DeltaV2 - DeltaU2 * DeltaV1);
-//
-//        FVector Tangent = F * (DeltaV2 * Edge1 - DeltaV1 * Edge2);
-//        FVector Normal = CrossProduct(Edge1, Edge2);
-//
-//        V0.Tangent += Tangent;
-//        V1.Tangent += Tangent;
-//        V2.Tangent += Tangent;
-//
-//        V0.Normal += Normal;
-//        V1.Normal += Normal;
-//        V2.Normal += Normal;
-//    }
-//
-//    for (FVertex& Vertex : Vertices) {
-//        Vertex.Tangent = Normalize(Vertex.Tangent);
-//        Vertex.Normal = Normalize(Vertex.Normal);
-//    }
-//}
 
-void ATester::CalculateTriangles(const uint16 Size)
+void ATester::CalculateTriangles(const uint32 Size)
 {
-	const uint16 TriangleNodesCount = (Size - 1) * (Size - 1) * 2 * 3;
+	const uint32 TriangleNodesCount = (Size - 1) * (Size - 1) * 2 * 3;
 	TriangleIndices.Empty(TriangleNodesCount);
 
-	for (uint16 y = 0; y < Size - 1; y++)
+	for (uint32 y = 0; y < Size - 1; y++)
 	{
-		for (uint16 x = 0; x < Size - 1; x++)
+		for (uint32 x = 0; x < Size - 1; x++)
 		{
 			TriangleIndices.Add(x + y * Size);
 			TriangleIndices.Add(x + (y + 1) * Size);
 			TriangleIndices.Add(x + 1 + y * Size);
-
 
 			TriangleIndices.Add(x + 1 + y * Size);
 			TriangleIndices.Add(x + (y + 1) * Size);
@@ -201,6 +173,13 @@ void ATester::CalculateTriangles(const uint16 Size)
 	}
 }
 
+FORCEINLINE void NormalizeVector(FVector& v)
+{
+	if (!v.Normalize())
+	{
+		UE_LOG(LogTemp, Error, TEXT("Failed to Normalize %s"), *v.ToString());
+	}
+}
 
 FVector ATester::GetNormal(const FVector& V0, const FVector& V1, const FVector& V2)
 {
@@ -209,17 +188,17 @@ FVector ATester::GetNormal(const FVector& V0, const FVector& V1, const FVector& 
 
 	FVector crossVector = FVector::CrossProduct(Edge2, Edge1);
 
-	crossVector.Normalize();
+	NormalizeVector(crossVector);
 
 	return crossVector;
 }
 
-void ATester::CalculateNormals(const uint16 Size)
+void ATester::CalculateNormals(const uint32 Size)
 {
-	const uint16 NormalCount = Size * Size;
-	const uint16 TriangleIndicesCount = (Size - 1) * (Size - 1) * 2 * 3;
+	const uint32 NormalCount = Size * Size;
+	const uint32 TriangleIndicesCount = (Size - 1) * (Size - 1) * 2 * 3;
 	Normals.Empty(NormalCount);
-	Normals.AddDefaulted(NormalCount);
+	Normals.AddZeroed(NormalCount);
 
 	check(Vertices.Num() == NormalCount)
 	check(TriangleIndices.Num() == TriangleIndicesCount)
@@ -229,7 +208,7 @@ void ATester::CalculateNormals(const uint16 Size)
 		const uint32 I0 = TriangleIndices[i];
 		const uint32 I1 = TriangleIndices[i + 1];
 		const uint32 I2 = TriangleIndices[i + 2];
-
+		
 		FVector Normal = GetNormal
 		(
 			Vertices[I0],
@@ -244,7 +223,7 @@ void ATester::CalculateNormals(const uint16 Size)
 
 	for (size_t i = 0; i < NormalCount; i++)
 	{
-		Normals[i].Normalize();
+		NormalizeVector(Normals[i]);
 	}
 }
 
