@@ -1,13 +1,13 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 
-#include "ATester.h"
+#include "ATerrainGenerator.h"
 #include "ProceduralMeshComponent.h"
 #include "KismetProceduralMeshLibrary.h"
 
 using UE::Math::TVector;
 // Sets default values
-ATester::ATester()
+ATerrainGenerator::ATerrainGenerator()
 {
  	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = false;
@@ -16,7 +16,7 @@ ATester::ATester()
 	ProceduralMesh->SetupAttachment(GetRootComponent());
 }
 
-void ATester::AlterVertices(const uint32 Size)
+void ATerrainGenerator::AlterVertices(const uint32 Size)
 {
 	const uint8* Pixels = nullptr;
 	FTexture2DMipMap* Mip = nullptr;
@@ -78,7 +78,7 @@ void ATester::AlterVertices(const uint32 Size)
 }
 
 // Called when the game starts or when spawned
-void ATester::BeginPlay()
+void ATerrainGenerator::BeginPlay()
 {
 	Super::BeginPlay();
 
@@ -126,7 +126,7 @@ void ATester::BeginPlay()
 	ProceduralMesh->SetMaterial(0, MeshMaterial);
 }
 
-void ATester::CalculateVertices(const uint32 Size)
+void ATerrainGenerator::CalculateVertices(const uint32 Size)
 {
 	const uint32 VertCount = Size * Size;
 	Vertices.Empty(VertCount);
@@ -153,7 +153,7 @@ void ATester::CalculateVertices(const uint32 Size)
 }
 
 
-void ATester::CalculateTriangles(const uint32 Size)
+void ATerrainGenerator::CalculateTriangles(const uint32 Size)
 {
 	const uint32 TriangleNodesCount = (Size - 1) * (Size - 1) * 2 * 3;
 	TriangleIndices.Empty(TriangleNodesCount);
@@ -181,7 +181,7 @@ FORCEINLINE void NormalizeVector(FVector& v)
 	}
 }
 
-FVector ATester::GetNormal(const FVector& V0, const FVector& V1, const FVector& V2)
+FVector ATerrainGenerator::GetNormal(const FVector& V0, const FVector& V1, const FVector& V2)
 {
 	const FVector Edge1 = V1 - V0;
 	const FVector Edge2 = V2 - V0;
@@ -193,7 +193,7 @@ FVector ATester::GetNormal(const FVector& V0, const FVector& V1, const FVector& 
 	return crossVector;
 }
 
-void ATester::CalculateNormals(const uint32 Size)
+void ATerrainGenerator::CalculateNormals(const uint32 Size)
 {
 	const uint32 NormalCount = Size * Size;
 	const uint32 TriangleIndicesCount = (Size - 1) * (Size - 1) * 2 * 3;
@@ -228,7 +228,7 @@ void ATester::CalculateNormals(const uint32 Size)
 }
 
 // Called every frame
-void ATester::Tick(float DeltaTime)
+void ATerrainGenerator::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 }

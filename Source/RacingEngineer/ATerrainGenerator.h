@@ -4,13 +4,13 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
-#include "ATester.generated.h"
+#include "ATerrainGenerator.generated.h"
 
 struct FProcMeshTangent;
 class UProceduralMeshComponent;
 
 UCLASS()
-class RACINGENGINEER_API ATester : public AActor
+class RACINGENGINEER_API ATerrainGenerator : public AActor
 {
 	GENERATED_BODY()
 	
@@ -22,7 +22,7 @@ public:
 	UFUNCTION()
 	void CalculateVertices(uint32 Size);
 	// Sets default values for this actor's properties
-	ATester();
+	ATerrainGenerator();
 
 protected:
 	void AlterVertices(uint32 Size);
