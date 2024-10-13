@@ -34,5 +34,14 @@ public:
 	UStaticMesh* TrackMesh;
 
 private:
+	UPROPERTY()
+	TArray<FVector> SplineTangents;
+
+
+	UPROPERTY(EditAnywhere)
+	double VertSpacing = 250.0;
+
 	void CreateMeshToSpline();
+
+	FVector GetMeshLength() const;
 };

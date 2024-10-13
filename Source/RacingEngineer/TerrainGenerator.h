@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
-#include "ATerrainGenerator.generated.h"
+#include "TerrainGenerator.generated.h"
 
 struct FProcMeshTangent;
 class UProceduralMeshComponent;

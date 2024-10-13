@@ -19,6 +19,18 @@ ATrackGenerator::ATrackGenerator()
 	}
 }
 
+FVector ATrackGenerator::GetMeshLength() const
+{
+	if (TrackMesh != nullptr)
+	{
+		const FBox MeshBox = TrackMesh->GetBoundingBox();
+
+		return { MeshBox.Max - MeshBox.Min };
+	}
+
+	return FVector::Zero();
+}
+
 void ATrackGenerator::CreateMeshToSpline()
 {
 	if (SplineComponent != nullptr && TrackMesh != nullptr)
@@ -38,7 +50,11 @@ void ATrackGenerator::CreateMeshToSpline()
 
 
 		const uint32 NumberOfSplinePoints = SplineComponent->GetNumberOfSplinePoints();
-		for (uint32 SplineIndex = 0; SplineIndex < NumberOfSplinePoints; SplineIndex++)
+		FVector MeshOffset = GetMeshLength() / 2.0;
+		SplineTangents.Empty(NumberOfSplinePoints);
+
+		//																### remove to loop
+		for (uint32 SplineIndex = 0; SplineIndex < NumberOfSplinePoints - 1; SplineIndex++)
 		{
 			const FName SplineMeshName = *FString::Printf(TEXT("TrackMesh%d"), SplineIndex);
 			USplineMeshComponent* SplineMeshComponent = NewObject<USplineMeshComponent>(this, USplineMeshComponent::StaticClass(), SplineMeshName);
@@ -54,7 +70,15 @@ void ATrackGenerator::CreateMeshToSpline()
 			const FVector StartTangent = SplineComponent->GetTangentAtSplinePoint(SplineIndex, ESplineCoordinateSpace::Local);
 			const FVector EndTangent = SplineComponent->GetTangentAtSplinePoint((SplineIndex + 1) % NumberOfSplinePoints, ESplineCoordinateSpace::Local);
 
-			SplineMeshComponent->SetStartAndEnd(StartPos, StartTangent, EndPos, EndTangent);
+			FVector PosDirectionOffset = EndTangent - StartPos;
+			PosDirectionOffset = FVector::CrossProduct(PosDirectionOffset, FVector::UpVector);
+			PosDirectionOffset.Normalize();
+			PosDirectionOffset *= MeshOffset.Y;
+
+			SplineTangents.Add(StartTangent);
+
+			SplineMeshComponent->SetStartAndEnd(StartPos - PosDirectionOffset, StartTangent, EndPos - PosDirectionOffset, EndTangent);
+			//SplineMeshComponent->SetStartAndEnd(StartPos, StartTangent, EndPos, EndTangent);
 			SplineMeshComponent->SetCollisionEnabled(ECollisionEnabled::PhysicsOnly);
 		}
 	}
@@ -72,23 +96,14 @@ void ATrackGenerator::BeginPlay()
 	Super::BeginPlay();
 
 	TArray<uint8> TrackMapArray;
-	TrackMapArray.Empty(64 * 64);
-	TrackMapArray.AddZeroed(64 * 64);
+	constexpr uint32 Size = 64;
+	TrackMapArray.Empty(Size * Size);
+	TrackMapArray.AddZeroed(Size * Size);
 
 	if (SplineComponent != nullptr)
 	{
 		TQueue<FVector> TrackMapQueue;
-		//// Creating a track array
-		//for (uint32 y = 0; y < 64; y++)
-		//{
-		//	for (uint32 x = 0; x < 64; x++)
-		//	{
-		//		if (x * x + y * y > 250 && x * x + y * y < 260) // x * x + y * y == 256
-		//		{
-		//			TrackMapArray[x + y * 64] = 1;
-		//		}
-		//	}
-		//}
+		// Fixed Spline Pos queue
 		TrackMapQueue.Enqueue({ 16, 16, 0 });
 		//TrackMapQueue.Enqueue({ 32, 16, 0 });
 		TrackMapQueue.Enqueue({ 48, 16, 0 });
@@ -98,23 +113,19 @@ void ATrackGenerator::BeginPlay()
 		TrackMapQueue.Enqueue({ 16, 48, 0 });
 		TrackMapQueue.Enqueue({ 16, 32, 0 });
 
-
-
 		SplineComponent->ClearSplinePoints();
 		// Adding spline points to the array
-		constexpr double VertSpacing = 250.0;
 		FVector SplinePos;
 		while (TrackMapQueue.Dequeue(SplinePos))
 		{
-			SplineComponent->AddSplinePoint(SplinePos * VertSpacing, ESplineCoordinateSpace::Local);
+			SplinePos = (SplinePos - Size / 2) * VertSpacing;
+			SplinePos.Z = 0.0;
+			SplineComponent->AddSplinePoint(SplinePos, ESplineCoordinateSpace::Local);
 		}
 
 		CreateMeshToSpline();
 	}
-
 }
-
-
 
 // Called every frame
 void ATrackGenerator::Tick(float DeltaTime)
