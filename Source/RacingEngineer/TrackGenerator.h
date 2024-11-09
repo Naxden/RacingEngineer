@@ -41,7 +41,12 @@ private:
 	UPROPERTY(EditAnywhere)
 	double VertSpacing = 250.0;
 
+	UPROPERTY(EditAnywhere)
+	TSubclassOf<AActor> ActorToSpawn;
+
+	void SpawnMeshBasedOnMeshLength(const FVector& MeshSize);
 	void CreateMeshToSpline();
 
 	FVector GetMeshLength() const;
+	void SpawnMeshPerSplinePoint(uint32 NumberOfSplinePoints, FVector MeshOffset);
 };
