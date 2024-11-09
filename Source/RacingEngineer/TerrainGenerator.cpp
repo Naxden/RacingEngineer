@@ -16,65 +16,72 @@ ATerrainGenerator::ATerrainGenerator()
 	ProceduralMesh->SetupAttachment(GetRootComponent());
 }
 
-void ATerrainGenerator::AlterVertices(const uint32 Size)
+void ATerrainGenerator::GetVerticesHeightFromTexture(const uint32 Size)
 {
-	const uint8* Pixels = nullptr;
-	FTexture2DMipMap* Mip = nullptr;
-	bool usedTexture = false;
-
 	if (HeightMapTexture != nullptr)
 	{
-		// Get the resource of the HeightMapTexture
-		Mip = &HeightMapTexture->GetPlatformData()->Mips[0];
-		void* Data = Mip->BulkData.Lock(LOCK_READ_ONLY);
-
-		auto mipSize = Mip->BulkData.GetBulkDataSize();
-		UE_LOG(LogTemp, Warning, TEXT("Mip's element size in bytes: %d"), Mip->BulkData.GetElementSize());
-		UE_LOG(LogTemp, Warning, TEXT("Mip size in bytes: %lld"), mipSize);
-
-		Pixels = static_cast<uint8*>(Data);
-	}
-
-	for (uint32 y = 0; y < Size; y++)
-	{
-		for (uint32 x = 0; x < Size; x++)
-		{
-			double Offset;
-
-			if (Mip != nullptr)
+		FRenderCommandFence RenderFence;
+		
+		ENQUEUE_RENDER_COMMAND(ReadColorsFromTexture)(
+			[Size, this](FRHICommandListImmediate& RHICmdList)
 			{
-				// Calculate the index of the pixel in the texture
-				const int32 PixelIndex = y * Size + x;
-				const int32 PixelOffset = PixelIndex * 4; // Each pixel has 4 bytes (RGBA)
+				FTextureResource* Resource = HeightMapTexture->GetResource();
+				uint32 Stride = 0;
+				void* MidData = RHILockTexture2D(
+					Resource->GetTexture2DRHI(),
+					0,
+					RLM_ReadOnly,
+					Stride,
+					false
+				);
 
-				// Get the RGBA values of the pixel
-				const uint8 Red = Pixels[PixelOffset];
-				//const uint8 Green = Pixels[PixelOffset + 1];
-				//const uint8 Blue = Pixels[PixelOffset + 2];
-				//const uint8 Alpha = Pixels[PixelOffset + 3];
+				uint8* ColorData = static_cast<uint8*>(MidData);
 
-				// Calculate the Offset based on the RGBA values
-				Offset = (Red) / 255.0 * VertAlterationScale;
+				for (uint32 y = 0; y < Size; y++)
+				{
+					for (uint32 x = 0; x < Size; x++)
+					{
+						double Offset = 125.0;
 
-				usedTexture = true;
-			}
-			else
-			{
-				Offset = sin((x * y) / pow(Size, 2) * PI) * VertAlterationScale;
+						if (MidData != nullptr)
+						{
+							// Calculate the index of the pixel in the texture
+							const int32 PixelIndex = y * Size + x;
+							const int32 PixelOffset = PixelIndex * 4; // Each pixel has 4 bytes (RGBA)
 
-				usedTexture = false;
-			}
+							uint8 value = 0;
+							switch (TextureChannel)
+							{
+							case EColorChannel::Blue:
+								value = ColorData[PixelOffset];
+								break;
+							case EColorChannel::Green:
+								value = ColorData[PixelOffset + 1];
+								break;
+							case EColorChannel::Red:
+								value = ColorData[PixelOffset + 2];
+								break;
+							case EColorChannel::Alpha:
+								value = ColorData[PixelOffset + 3];
+								break;
+							default:
+								break;
+							}
 
-			Vertices[y * Size + x].Z += Offset - VertAlterationScale;
-		}
+							// Calculate the Offset based on the RGBA values
+							Offset = (value) / 255.0 * VertAlterationScale;
+						}
+
+						Vertices[y * Size + x].Z += Offset - VertAlterationScale;
+					}
+				}
+
+				RHIUnlockTexture2D(Resource->GetTexture2DRHI(), 0, false);
+			});
+
+		RenderFence.BeginFence();
+		RenderFence.Wait();
 	}
-
-	if (Mip != nullptr)
-	{
-		Mip->BulkData.Unlock();
-	}
-
-	UE_LOG(LogTemp, Warning, TEXT("%hs Used texture to generate terrain"), usedTexture ? "" : "NOT");
 }
 
 // Called when the game starts or when spawned
@@ -92,7 +99,7 @@ void ATerrainGenerator::BeginPlay()
 	}
 
 	CalculateVertices(Resolution);
-	AlterVertices(Resolution);
+	GetVerticesHeightFromTexture(Resolution);
 	CalculateTriangles(Resolution);
 
 	TArray<FProcMeshTangent> Tangents;
@@ -133,7 +140,7 @@ void ATerrainGenerator::CalculateVertices(const uint32 Size)
 	const TVector LocalScale = GetTransform().GetScale3D();
 	TVector LocalPosition = GetTransform().GetLocation();
 
-	LocalPosition -= UE::Math::TVector<double>((Size / 2) * VertSpacing, (Size / 2) * VertSpacing, 0);
+	LocalPosition -= UE::Math::TVector<double>(Size / 2 * VertSpacing, Size / 2 * VertSpacing, 0);
 
 	for (uint32 y = 0; y < Size; y++)
 	{

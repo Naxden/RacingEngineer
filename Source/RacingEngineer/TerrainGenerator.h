@@ -9,6 +9,15 @@
 struct FProcMeshTangent;
 class UProceduralMeshComponent;
 
+UENUM()
+enum class EColorChannel : uint8
+{
+	Blue,
+	Green,
+	Red,
+	Alpha
+};
+
 UCLASS()
 class RACINGENGINEER_API ATerrainGenerator : public AActor
 {
@@ -25,7 +34,6 @@ public:
 	ATerrainGenerator();
 
 protected:
-	void AlterVertices(uint32 Size);
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
 
@@ -67,4 +75,9 @@ private:
 
 	UPROPERTY(EditAnywhere)
 	UMaterialInterface* MeshMaterial;
+
+	UPROPERTY(EditAnywhere)
+	EColorChannel TextureChannel;
+
+	void GetVerticesHeightFromTexture(const uint32 Size);
 };
