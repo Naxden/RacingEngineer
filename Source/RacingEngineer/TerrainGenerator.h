@@ -12,9 +12,9 @@ class UProceduralMeshComponent;
 UENUM()
 enum class EColorChannel : uint8
 {
-	Blue,
-	Green,
 	Red,
+	Green,
+	Blue,
 	Alpha
 };
 
@@ -24,14 +24,22 @@ class RACINGENGINEER_API ATerrainGenerator : public AActor
 	GENERATED_BODY()
 	
 public:
+
 	UFUNCTION()
-	void CalculateTriangles(uint32 Size);
+	static TArray<int32> CalculateTriangles(uint32 Size);
+
+	UFUNCTION()
 	static FVector GetNormal(const FVector& V0, const FVector& V1, const FVector& V2);
-	void CalculateNormals(uint32 Size);
+
 	UFUNCTION()
-	void CalculateVertices(uint32 Size);
-	// Sets default values for this actor's properties
+	static TArray<FVector> CalculateNormals(const TArray<FVector>& Verts, const TArray<int32> Triangles, const uint32 Size);
+
 	ATerrainGenerator();
+
+	UFUNCTION()
+	TArray<FVector> CalculateVertices(uint32 Size) const;
+	UFUNCTION()
+	void AlterVerticesHeight(TArray<FVector>& outVertices, const uint32 Size, const TArray<FColor>& TexColors) const;
 
 protected:
 	// Called when the game starts or when spawned
@@ -42,6 +50,8 @@ public:
 	virtual void Tick(float DeltaTime) override;
 
 private:
+	UFUNCTION()
+	TArray<FColor> GetColorsFromHeightMapTexture() const;
 
 	UPROPERTY(VisibleAnywhere)
 	UProceduralMeshComponent* ProceduralMesh;
@@ -50,28 +60,13 @@ private:
 	bool UseBuiltInNormalsAndTangents = false;
 
 	UPROPERTY(EditAnywhere)
-	int Resolution = 3;
+	int TextureWidth = 3;
 
 	UPROPERTY(EditAnywhere)
-	int VertSpacing = 10;
-
-	UPROPERTY(EditAnywhere)
-	double VertAlterationScale = 10;
+	FVector VertSpacingScale = FVector::OneVector;
 
 	UPROPERTY(EditAnywhere)
 	UTexture2D* HeightMapTexture;
-
-	UPROPERTY()
-	TArray<FVector> Vertices;
-
-	UPROPERTY()
-	TArray<int32> TriangleIndices;
-
-	UPROPERTY()
-	TArray<FVector2D> UV;
-
-	UPROPERTY()
-	TArray<FVector> Normals;
 
 	UPROPERTY(EditAnywhere)
 	UMaterialInterface* MeshMaterial;
@@ -79,5 +74,15 @@ private:
 	UPROPERTY(EditAnywhere)
 	EColorChannel TextureChannel;
 
-	void GetVerticesHeightFromTexture(const uint32 Size);
+	TArray<FVector> Vertices;
+
+	TArray<FColor> TextureColors;
+
+	TArray<int32> TriangleIndices;
+
+	TArray<FVector2D> UV;
+
+	TArray<FVector> Normals;
+
+	static void GetColors(TArray<FColor>& ColorData, void* MipData, uint32 Width, uint32 Height);
 };

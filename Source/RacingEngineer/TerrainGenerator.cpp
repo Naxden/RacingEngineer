@@ -16,18 +16,28 @@ ATerrainGenerator::ATerrainGenerator()
 	ProceduralMesh->SetupAttachment(GetRootComponent());
 }
 
-void ATerrainGenerator::GetVerticesHeightFromTexture(const uint32 Size)
+TArray<FColor> ATerrainGenerator::GetColorsFromHeightMapTexture() const
 {
+	TArray<FColor> ColorData;
+
 	if (HeightMapTexture != nullptr)
 	{
 		FRenderCommandFence RenderFence;
-		
+
+		const uint32 Width = HeightMapTexture->GetSizeX();
+		const uint32 Height = HeightMapTexture->GetSizeY();
+
+		ColorData.SetNumUninitialized(Width * Height);
+
 		ENQUEUE_RENDER_COMMAND(ReadColorsFromTexture)(
-			[Size, this](FRHICommandListImmediate& RHICmdList)
+			[&ColorData, Width, Height, this](FRHICommandListImmediate& RHICmdList)
 			{
+				constexpr uint32 BufferSize = 256;
+				const uint64 TextureResolution = Width * Height;
+
 				FTextureResource* Resource = HeightMapTexture->GetResource();
 				uint32 Stride = 0;
-				void* MidData = RHILockTexture2D(
+				void* MipData = RHILockTexture2D(
 					Resource->GetTexture2DRHI(),
 					0,
 					RLM_ReadOnly,
@@ -35,45 +45,14 @@ void ATerrainGenerator::GetVerticesHeightFromTexture(const uint32 Size)
 					false
 				);
 
-				uint8* ColorData = static_cast<uint8*>(MidData);
-
-				for (uint32 y = 0; y < Size; y++)
+				EPixelFormat TexturePixelFormat = HeightMapTexture->GetPlatformData()->PixelFormat;
+				if (TexturePixelFormat == PF_B8G8R8A8)
 				{
-					for (uint32 x = 0; x < Size; x++)
-					{
-						double Offset = 125.0;
-
-						if (MidData != nullptr)
-						{
-							// Calculate the index of the pixel in the texture
-							const int32 PixelIndex = y * Size + x;
-							const int32 PixelOffset = PixelIndex * 4; // Each pixel has 4 bytes (RGBA)
-
-							uint8 value = 0;
-							switch (TextureChannel)
-							{
-							case EColorChannel::Blue:
-								value = ColorData[PixelOffset];
-								break;
-							case EColorChannel::Green:
-								value = ColorData[PixelOffset + 1];
-								break;
-							case EColorChannel::Red:
-								value = ColorData[PixelOffset + 2];
-								break;
-							case EColorChannel::Alpha:
-								value = ColorData[PixelOffset + 3];
-								break;
-							default:
-								break;
-							}
-
-							// Calculate the Offset based on the RGBA values
-							Offset = (value) / 255.0 * VertAlterationScale;
-						}
-
-						Vertices[y * Size + x].Z += Offset - VertAlterationScale;
-					}
+					GetColors(ColorData, MipData, Width, Height);
+				}
+				else
+				{
+					UE_LOG(LogTemp, Warning, TEXT("ATerrainGenerator::GetColorsFromHeightMapTexture() unhandeled PixelFormat"))
 				}
 
 				RHIUnlockTexture2D(Resource->GetTexture2DRHI(), 0, false);
@@ -81,6 +60,64 @@ void ATerrainGenerator::GetVerticesHeightFromTexture(const uint32 Size)
 
 		RenderFence.BeginFence();
 		RenderFence.Wait();
+
+	}
+
+	return ColorData;
+}
+
+void ATerrainGenerator::GetColors(TArray<FColor>& ColorData, void* MipData, uint32 Width, uint32 Height)
+{
+	constexpr uint32 BufferSize = 256;
+	const uint64 TextureResolution = Width * Height;
+
+	if (Width < BufferSize / sizeof(FColor))
+	{
+		for (uint32 y = 0; y < Height; y++)
+		{
+			FColor* Dst = ColorData.GetData() + y * Width;
+			const FColor* Src = static_cast<FColor*>(MipData) + y * BufferSize / sizeof(FColor);
+
+			FMemory::Memcpy(Dst, Src, Width * sizeof(FColor));
+		}
+	}
+	else
+	{
+		FMemory::Memcpy(ColorData.GetData(), MipData, TextureResolution * sizeof(FColor));
+	}
+}
+
+void ATerrainGenerator::AlterVerticesHeight(TArray<FVector>& outVertices, const uint32 Size, const TArray<FColor>& TexColors) const
+{
+	for (uint32 y = 0; y < Size; y++)
+	{
+		for (uint32 x = 0; x < Size; x++)
+		{
+			constexpr uint8 Offset = 127;
+			FVector& currentVert = outVertices[y * Size + x];
+			const FColor& currentColor = TexColors[y * Size + x];
+
+			uint8 colorValue = 0;
+			switch (TextureChannel)
+			{
+			case EColorChannel::Blue:
+				colorValue = currentColor.B;
+				break;
+			case EColorChannel::Green:
+				colorValue = currentColor.G;
+				break;
+			case EColorChannel::Red:
+				colorValue = currentColor.R;
+				break;
+			case EColorChannel::Alpha:
+				colorValue = currentColor.A;
+				break;
+			default:
+				break;
+			}
+
+			currentVert.Z += (colorValue - Offset) / 255.0 * VertSpacingScale.Z;
+		}
 	}
 }
 
@@ -95,25 +132,26 @@ void ATerrainGenerator::BeginPlay()
 
 		check(HeightMapResource->GetSizeX() == HeightMapResource->GetSizeY())
 
-		Resolution = HeightMapResource->GetSizeX();
+		TextureWidth = HeightMapResource->GetSizeX();
 	}
 
-	CalculateVertices(Resolution);
-	GetVerticesHeightFromTexture(Resolution);
-	CalculateTriangles(Resolution);
+	Vertices = CalculateVertices(TextureWidth);
+	TextureColors = GetColorsFromHeightMapTexture();
+	AlterVerticesHeight(Vertices, TextureWidth, TextureColors);
+	TriangleIndices = CalculateTriangles(TextureWidth);
 
-	TArray<FProcMeshTangent> Tangents;
 	TArray<FProcMeshTangent> Tangents1;
 
 	const uint32 TimerStart = FPlatformTime::Cycles();
 
 	if (UseBuiltInNormalsAndTangents)
 	{
+		TArray<FProcMeshTangent> Tangents;
 		UKismetProceduralMeshLibrary::CalculateTangentsForMesh(Vertices, TriangleIndices, UV, Normals, Tangents);
 	}
 	else
 	{	
-		CalculateNormals(Resolution);
+		Normals = CalculateNormals(Vertices, TriangleIndices, TextureWidth);
 	}
 
 	const uint32 TimerStop = FPlatformTime::Cycles();
@@ -133,51 +171,54 @@ void ATerrainGenerator::BeginPlay()
 	ProceduralMesh->SetMaterial(0, MeshMaterial);
 }
 
-void ATerrainGenerator::CalculateVertices(const uint32 Size)
+TArray<FVector> ATerrainGenerator::CalculateVertices(const uint32 Size) const
 {
-	const uint32 VertCount = Size * Size;
-	Vertices.Empty(VertCount);
-	const TVector LocalScale = GetTransform().GetScale3D();
+	TArray<FVector> Verts;
+	const uint64 VertCount = Size * Size;
+	Verts.Reserve(VertCount);
+
 	TVector LocalPosition = GetTransform().GetLocation();
 
-	LocalPosition -= UE::Math::TVector<double>(Size / 2 * VertSpacing, Size / 2 * VertSpacing, 0);
+	LocalPosition -= UE::Math::TVector<double>(Size / 2 * VertSpacingScale.X, Size / 2 * VertSpacingScale.Y, 0);
 
 	for (uint32 y = 0; y < Size; y++)
 	{
 		for (uint32 x = 0; x < Size; x++)
 		{
-			Vertices.Add
+			Verts.Emplace
 			(
-			FVector
-				(
-				x * VertSpacing * LocalScale.X + LocalPosition.X, 
-				y * VertSpacing * LocalScale.Y + LocalPosition.Y, 
-				0
-				)
+			x * VertSpacingScale.X + LocalPosition.X, 
+			y * VertSpacingScale.Y + LocalPosition.Y,
+				LocalPosition.Z
 			);
 		}
 	}
+
+	return Verts;
 }
 
 
-void ATerrainGenerator::CalculateTriangles(const uint32 Size)
+TArray<int32> ATerrainGenerator::CalculateTriangles(const uint32 Size)
 {
 	const uint32 TriangleNodesCount = (Size - 1) * (Size - 1) * 2 * 3;
-	TriangleIndices.Empty(TriangleNodesCount);
+	TArray<int32> TriangleNodes;
+	TriangleNodes.Reserve(TriangleNodesCount);
 
 	for (uint32 y = 0; y < Size - 1; y++)
 	{
 		for (uint32 x = 0; x < Size - 1; x++)
 		{
-			TriangleIndices.Add(x + y * Size);
-			TriangleIndices.Add(x + (y + 1) * Size);
-			TriangleIndices.Add(x + 1 + y * Size);
+			TriangleNodes.Emplace(x + y * Size);
+			TriangleNodes.Emplace(x + (y + 1) * Size);
+			TriangleNodes.Emplace(x + 1 + y * Size);
 
-			TriangleIndices.Add(x + 1 + y * Size);
-			TriangleIndices.Add(x + (y + 1) * Size);
-			TriangleIndices.Add(x + 1 + (y + 1) * Size);
+			TriangleNodes.Emplace(x + 1 + y * Size);
+			TriangleNodes.Emplace(x + (y + 1) * Size);
+			TriangleNodes.Emplace(x + 1 + (y + 1) * Size);
 		}
 	}
+
+	return TriangleNodes;
 }
 
 FORCEINLINE void NormalizeVector(FVector& v)
@@ -200,27 +241,29 @@ FVector ATerrainGenerator::GetNormal(const FVector& V0, const FVector& V1, const
 	return crossVector;
 }
 
-void ATerrainGenerator::CalculateNormals(const uint32 Size)
+TArray<FVector> ATerrainGenerator::CalculateNormals(const TArray<FVector>& Verts, const TArray<int32> Triangles, const uint32 Size)
 {
 	const uint32 NormalCount = Size * Size;
 	const uint32 TriangleIndicesCount = (Size - 1) * (Size - 1) * 2 * 3;
+
+	check(Verts.Num() == NormalCount)
+	check(Triangles.Num() == TriangleIndicesCount)
+
+	TArray<FVector> Normals;
 	Normals.Empty(NormalCount);
 	Normals.AddZeroed(NormalCount);
 
-	check(Vertices.Num() == NormalCount)
-	check(TriangleIndices.Num() == TriangleIndicesCount)
-
 	for (uint32 i = 0; i < TriangleIndicesCount; i += 3)
 	{
-		const uint32 I0 = TriangleIndices[i];
-		const uint32 I1 = TriangleIndices[i + 1];
-		const uint32 I2 = TriangleIndices[i + 2];
+		const uint32 I0 = Triangles[i];
+		const uint32 I1 = Triangles[i + 1];
+		const uint32 I2 = Triangles[i + 2];
 		
 		FVector Normal = GetNormal
 		(
-			Vertices[I0],
-			Vertices[I1],
-			Vertices[I2]
+			Verts[I0],
+			Verts[I1],
+			Verts[I2]
 		);
 
 		Normals[I0] += Normal;
@@ -232,6 +275,8 @@ void ATerrainGenerator::CalculateNormals(const uint32 Size)
 	{
 		NormalizeVector(Normals[i]);
 	}
+
+	return Normals;
 }
 
 // Called every frame
