@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "WorkerActor.h"
 #include "GameFramework/Actor.h"
 #include "TerrainGenerator.generated.h"
 
@@ -19,7 +20,7 @@ enum class EColorChannel : uint8
 };
 
 UCLASS()
-class RACINGENGINEER_API ATerrainGenerator : public AActor
+class RACINGENGINEER_API ATerrainGenerator : public AWorkerActor
 {
 	GENERATED_BODY()
 	
@@ -41,6 +42,8 @@ public:
 	UFUNCTION()
 	void AlterVerticesHeight(TArray<FVector>& outVertices, const uint32 Size, const TArray<FColor>& TexColors) const;
 
+	virtual void DoWork(const TArray<FColor>& HeightTextureColors, FOnWorkFinished Callback) override;
+
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
@@ -50,8 +53,9 @@ public:
 	virtual void Tick(float DeltaTime) override;
 
 private:
+
 	UFUNCTION()
-	TArray<FColor> GetColorsFromHeightMapTexture() const;
+	void CreateTerrain(const TArray<FColor>& HeightTextureColors);
 
 	UPROPERTY(VisibleAnywhere)
 	UProceduralMeshComponent* ProceduralMesh;
@@ -60,13 +64,7 @@ private:
 	bool UseBuiltInNormalsAndTangents = false;
 
 	UPROPERTY(EditAnywhere)
-	int TextureWidth = 3;
-
-	UPROPERTY(EditAnywhere)
 	FVector VertSpacingScale = FVector::OneVector;
-
-	UPROPERTY(EditAnywhere)
-	UTexture2D* HeightMapTexture;
 
 	UPROPERTY(EditAnywhere)
 	UMaterialInterface* MeshMaterial;
@@ -76,13 +74,9 @@ private:
 
 	TArray<FVector> Vertices;
 
-	TArray<FColor> TextureColors;
-
 	TArray<int32> TriangleIndices;
 
 	TArray<FVector2D> UV;
 
 	TArray<FVector> Normals;
-
-	static void GetColors(TArray<FColor>& ColorData, void* MipData, uint32 Width, uint32 Height);
 };

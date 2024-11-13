@@ -16,75 +16,64 @@ ATerrainGenerator::ATerrainGenerator()
 	ProceduralMesh->SetupAttachment(GetRootComponent());
 }
 
-TArray<FColor> ATerrainGenerator::GetColorsFromHeightMapTexture() const
+// Called when the game starts or when spawned
+void ATerrainGenerator::BeginPlay()
 {
-	TArray<FColor> ColorData;
-
-	if (HeightMapTexture != nullptr)
-	{
-		FRenderCommandFence RenderFence;
-
-		const uint32 Width = HeightMapTexture->GetSizeX();
-		const uint32 Height = HeightMapTexture->GetSizeY();
-
-		ColorData.SetNumUninitialized(Width * Height);
-
-		ENQUEUE_RENDER_COMMAND(ReadColorsFromTexture)(
-			[&ColorData, Width, Height, this](FRHICommandListImmediate& RHICmdList)
-			{
-				constexpr uint32 BufferSize = 256;
-				const uint64 TextureResolution = Width * Height;
-
-				FTextureResource* Resource = HeightMapTexture->GetResource();
-				uint32 Stride = 0;
-				void* MipData = RHILockTexture2D(
-					Resource->GetTexture2DRHI(),
-					0,
-					RLM_ReadOnly,
-					Stride,
-					false
-				);
-
-				EPixelFormat TexturePixelFormat = HeightMapTexture->GetPlatformData()->PixelFormat;
-				if (TexturePixelFormat == PF_B8G8R8A8)
-				{
-					GetColors(ColorData, MipData, Width, Height);
-				}
-				else
-				{
-					UE_LOG(LogTemp, Warning, TEXT("ATerrainGenerator::GetColorsFromHeightMapTexture() unhandeled PixelFormat"))
-				}
-
-				RHIUnlockTexture2D(Resource->GetTexture2DRHI(), 0, false);
-			});
-
-		RenderFence.BeginFence();
-		RenderFence.Wait();
-
-	}
-
-	return ColorData;
+	Super::BeginPlay();
 }
 
-void ATerrainGenerator::GetColors(TArray<FColor>& ColorData, void* MipData, uint32 Width, uint32 Height)
+
+// Called every frame
+void ATerrainGenerator::Tick(float DeltaTime)
 {
-	constexpr uint32 BufferSize = 256;
-	const uint64 TextureResolution = Width * Height;
+	Super::Tick(DeltaTime);
+}
 
-	if (Width < BufferSize / sizeof(FColor))
+void ATerrainGenerator::DoWork(const TArray<FColor>& HeightTextureColors, FOnWorkFinished Callback)
+{
+	CreateTerrain(HeightTextureColors);
+
+	Super::DoWork(HeightTextureColors, Callback);
+}
+
+void ATerrainGenerator::CreateTerrain(const TArray<FColor>& HeightTextureColors)
+{
+	const uint32 TextureWidth = sqrt(HeightTextureColors.Num());
+
+	Vertices = CalculateVertices(TextureWidth);
+	AlterVerticesHeight(Vertices, TextureWidth, HeightTextureColors);
+	TriangleIndices = CalculateTriangles(TextureWidth);
+
+	TArray<FProcMeshTangent> Tangents1;
+
+	const uint32 TimerStart = FPlatformTime::Cycles();
+
+	if (UseBuiltInNormalsAndTangents)
 	{
-		for (uint32 y = 0; y < Height; y++)
-		{
-			FColor* Dst = ColorData.GetData() + y * Width;
-			const FColor* Src = static_cast<FColor*>(MipData) + y * BufferSize / sizeof(FColor);
-
-			FMemory::Memcpy(Dst, Src, Width * sizeof(FColor));
-		}
+		TArray<FProcMeshTangent> Tangents;
+		UKismetProceduralMeshLibrary::CalculateTangentsForMesh(Vertices, TriangleIndices, UV, Normals, Tangents);
 	}
 	else
 	{
-		FMemory::Memcpy(ColorData.GetData(), MipData, TextureResolution * sizeof(FColor));
+		Normals = CalculateNormals(Vertices, TriangleIndices, TextureWidth);
 	}
+
+	const uint32 TimerStop = FPlatformTime::Cycles();
+
+	UE_LOG(LogTemp, Warning, TEXT("Elapsed time %fms"), FPlatformTime::ToMilliseconds(TimerStop - TimerStart));
+
+	ProceduralMesh->CreateMeshSection(
+		0,
+		Vertices,
+		TriangleIndices,
+		Normals,
+		UV,
+		TArray<FColor>(),
+		Tangents1,
+		true);
+
+	ProceduralMesh->SetMaterial(0, MeshMaterial);
+
 }
 
 void ATerrainGenerator::AlterVerticesHeight(TArray<FVector>& outVertices, const uint32 Size, const TArray<FColor>& TexColors) const
@@ -119,56 +108,6 @@ void ATerrainGenerator::AlterVerticesHeight(TArray<FVector>& outVertices, const 
 			currentVert.Z += (colorValue - Offset) / 255.0 * VertSpacingScale.Z;
 		}
 	}
-}
-
-// Called when the game starts or when spawned
-void ATerrainGenerator::BeginPlay()
-{
-	Super::BeginPlay();
-
-	if (HeightMapTexture != nullptr)
-	{
-		const auto HeightMapResource = HeightMapTexture->GetResource();
-
-		check(HeightMapResource->GetSizeX() == HeightMapResource->GetSizeY())
-
-		TextureWidth = HeightMapResource->GetSizeX();
-	}
-
-	Vertices = CalculateVertices(TextureWidth);
-	TextureColors = GetColorsFromHeightMapTexture();
-	AlterVerticesHeight(Vertices, TextureWidth, TextureColors);
-	TriangleIndices = CalculateTriangles(TextureWidth);
-
-	TArray<FProcMeshTangent> Tangents1;
-
-	const uint32 TimerStart = FPlatformTime::Cycles();
-
-	if (UseBuiltInNormalsAndTangents)
-	{
-		TArray<FProcMeshTangent> Tangents;
-		UKismetProceduralMeshLibrary::CalculateTangentsForMesh(Vertices, TriangleIndices, UV, Normals, Tangents);
-	}
-	else
-	{	
-		Normals = CalculateNormals(Vertices, TriangleIndices, TextureWidth);
-	}
-
-	const uint32 TimerStop = FPlatformTime::Cycles();
-	
-	UE_LOG(LogTemp, Warning, TEXT("Elapsed time %fms"), FPlatformTime::ToMilliseconds(TimerStop - TimerStart));
-
-	ProceduralMesh->CreateMeshSection(
-		0, 
-		Vertices, 
-		TriangleIndices, 
-		Normals, 
-		UV, 
-		TArray<FColor>(), 
-		Tangents1,
-		true);
-
-	ProceduralMesh->SetMaterial(0, MeshMaterial);
 }
 
 TArray<FVector> ATerrainGenerator::CalculateVertices(const uint32 Size) const
@@ -278,10 +217,3 @@ TArray<FVector> ATerrainGenerator::CalculateNormals(const TArray<FVector>& Verts
 
 	return Normals;
 }
-
-// Called every frame
-void ATerrainGenerator::Tick(float DeltaTime)
-{
-	Super::Tick(DeltaTime);
-}
-
