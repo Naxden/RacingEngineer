@@ -29,19 +29,19 @@ void ATerrainGenerator::Tick(float DeltaTime)
 	Super::Tick(DeltaTime);
 }
 
-void ATerrainGenerator::DoWork(const TArray<FColor>& HeightTextureColors, FOnWorkFinished Callback)
+void ATerrainGenerator::DoWork(const TArray<FColor>& HeightTextureColors, const FVector& VertScale, FOnWorkFinished Callback)
 {
-	CreateTerrain(HeightTextureColors);
+	CreateTerrain(HeightTextureColors, VertScale);
 
-	Super::DoWork(HeightTextureColors, Callback);
+	Super::DoWork(HeightTextureColors, VertScale, Callback);
 }
 
-void ATerrainGenerator::CreateTerrain(const TArray<FColor>& HeightTextureColors)
+void ATerrainGenerator::CreateTerrain(const TArray<FColor>& HeightTextureColors, const FVector& VertScale)
 {
 	const uint32 TextureWidth = sqrt(HeightTextureColors.Num());
 
-	Vertices = CalculateVertices(TextureWidth);
-	AlterVerticesHeight(Vertices, TextureWidth, HeightTextureColors);
+	Vertices = CalculateVertices(TextureWidth, VertScale);
+	AlterVerticesHeight(Vertices, TextureWidth, HeightTextureColors, VertScale);
 	TriangleIndices = CalculateTriangles(TextureWidth);
 
 	TArray<FProcMeshTangent> Tangents1;
@@ -76,7 +76,7 @@ void ATerrainGenerator::CreateTerrain(const TArray<FColor>& HeightTextureColors)
 
 }
 
-void ATerrainGenerator::AlterVerticesHeight(TArray<FVector>& outVertices, const uint32 Size, const TArray<FColor>& TexColors) const
+void ATerrainGenerator::AlterVerticesHeight(TArray<FVector>& outVertices, const uint32 Size, const TArray<FColor>& TexColors, const FVector& VertScale) const
 {
 	for (uint32 y = 0; y < Size; y++)
 	{
@@ -89,14 +89,14 @@ void ATerrainGenerator::AlterVerticesHeight(TArray<FVector>& outVertices, const 
 			uint8 colorValue = 0;
 			switch (TextureChannel)
 			{
-			case EColorChannel::Blue:
-				colorValue = currentColor.B;
+			case EColorChannel::Red:
+				colorValue = currentColor.R;
 				break;
 			case EColorChannel::Green:
 				colorValue = currentColor.G;
 				break;
-			case EColorChannel::Red:
-				colorValue = currentColor.R;
+			case EColorChannel::Blue:
+				colorValue = currentColor.B;
 				break;
 			case EColorChannel::Alpha:
 				colorValue = currentColor.A;
@@ -105,12 +105,12 @@ void ATerrainGenerator::AlterVerticesHeight(TArray<FVector>& outVertices, const 
 				break;
 			}
 
-			currentVert.Z += (colorValue - Offset) / 255.0 * VertSpacingScale.Z;
+			currentVert.Z += (colorValue - Offset) / 255.0 * VertScale.Z;
 		}
 	}
 }
 
-TArray<FVector> ATerrainGenerator::CalculateVertices(const uint32 Size) const
+TArray<FVector> ATerrainGenerator::CalculateVertices(const uint32 Size, const FVector& VertScale) const
 {
 	TArray<FVector> Verts;
 	const uint64 VertCount = Size * Size;
@@ -118,7 +118,7 @@ TArray<FVector> ATerrainGenerator::CalculateVertices(const uint32 Size) const
 
 	TVector LocalPosition = GetTransform().GetLocation();
 
-	LocalPosition -= UE::Math::TVector<double>(Size / 2 * VertSpacingScale.X, Size / 2 * VertSpacingScale.Y, 0);
+	LocalPosition -= FVector(Size / 2 * VertScale.X, Size / 2 * VertScale.Y, 0.0);
 
 	for (uint32 y = 0; y < Size; y++)
 	{
@@ -126,8 +126,8 @@ TArray<FVector> ATerrainGenerator::CalculateVertices(const uint32 Size) const
 		{
 			Verts.Emplace
 			(
-			x * VertSpacingScale.X + LocalPosition.X, 
-			y * VertSpacingScale.Y + LocalPosition.Y,
+			x * VertScale.X + LocalPosition.X,
+			y * VertScale.Y + LocalPosition.Y,
 				LocalPosition.Z
 			);
 		}

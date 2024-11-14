@@ -11,7 +11,7 @@ AWorkerActor::AWorkerActor()
 
 }
 
-void AWorkerActor::DoWork(const TArray<FColor>& HeightTextureColors, FOnWorkFinished Callback)
+void AWorkerActor::DoWork(const TArray<FColor>& HeightTextureColors, const FVector& VertScale, FOnWorkFinished Callback)
 {
 	if (Callback.IsBound())
 	{

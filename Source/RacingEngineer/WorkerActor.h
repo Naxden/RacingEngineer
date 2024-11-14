@@ -17,7 +17,7 @@ public:
 	// Sets default values for this actor's properties
 	AWorkerActor();
 
-	virtual void DoWork(const TArray<FColor>& HeightTextureColors, FOnWorkFinished Callback);
+	virtual void DoWork(const TArray<FColor>& HeightTextureColors, const FVector& VertScale, FOnWorkFinished Callback);
 
 protected:
 	// Called when the game starts or when spawned

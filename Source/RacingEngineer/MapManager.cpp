@@ -4,6 +4,7 @@
 #include "MapManager.h"
 
 #include "TerrainGenerator.h"
+#include "TrackGenerator.h"
 
 // Sets default values
 AMapManager::AMapManager()
@@ -25,7 +26,12 @@ void AMapManager::BeginPlay()
 
 	if (TerrainGenerator != nullptr)
 	{
-		TerrainGenerator->DoWork(TextureColors, FOnWorkFinished::CreateUObject(this, &AMapManager::WorkerFinished));
+		TerrainGenerator->DoWork(TextureColors, VertSpacingScale, FOnWorkFinished::CreateUObject(this, &AMapManager::WorkerFinished));
+	}
+
+	if (TrackGenerator != nullptr)
+	{
+		TrackGenerator->DoWork(TextureColors, VertSpacingScale, FOnWorkFinished::CreateUObject(this, &AMapManager::WorkerFinished));
 	}
 }
 

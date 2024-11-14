@@ -38,11 +38,11 @@ public:
 	ATerrainGenerator();
 
 	UFUNCTION()
-	TArray<FVector> CalculateVertices(uint32 Size) const;
+	TArray<FVector> CalculateVertices(const uint32 Size, const FVector& VertScale) const;
 	UFUNCTION()
-	void AlterVerticesHeight(TArray<FVector>& outVertices, const uint32 Size, const TArray<FColor>& TexColors) const;
+	void AlterVerticesHeight(TArray<FVector>& outVertices, const uint32 Size, const TArray<FColor>& TexColors, const FVector& VertScale) const;
 
-	virtual void DoWork(const TArray<FColor>& HeightTextureColors, FOnWorkFinished Callback) override;
+	virtual void DoWork(const TArray<FColor>& HeightTextureColors, const FVector& VertScale, FOnWorkFinished Callback) override;
 
 protected:
 	// Called when the game starts or when spawned
@@ -55,7 +55,7 @@ public:
 private:
 
 	UFUNCTION()
-	void CreateTerrain(const TArray<FColor>& HeightTextureColors);
+	void CreateTerrain(const TArray<FColor>& HeightTextureColors, const FVector& VertScale);
 
 	UPROPERTY(VisibleAnywhere)
 	UProceduralMeshComponent* ProceduralMesh;
@@ -64,13 +64,10 @@ private:
 	bool UseBuiltInNormalsAndTangents = false;
 
 	UPROPERTY(EditAnywhere)
-	FVector VertSpacingScale = FVector::OneVector;
-
-	UPROPERTY(EditAnywhere)
 	UMaterialInterface* MeshMaterial;
 
 	UPROPERTY(EditAnywhere)
-	EColorChannel TextureChannel;
+	EColorChannel TextureChannel = EColorChannel::Red;
 
 	TArray<FVector> Vertices;
 

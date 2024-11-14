@@ -6,8 +6,8 @@
 #include "GameFramework/Actor.h"
 #include "MapManager.generated.h"
 
-class ATrackGenerator;
 class ATerrainGenerator;
+class ATrackGenerator;
 
 UCLASS()
 class RACINGENGINEER_API AMapManager : public AActor
@@ -36,6 +36,9 @@ private:
 private:
 	UPROPERTY(EditAnywhere)
 	UTexture2D* HeightMapTexture;
+
+	UPROPERTY(EditAnywhere)
+	FVector VertSpacingScale = FVector::OneVector;
 
 	UPROPERTY(EditAnywhere)
 	TObjectPtr<ATerrainGenerator> TerrainGenerator;
