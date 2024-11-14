@@ -23,6 +23,183 @@ ATrackGenerator::ATrackGenerator()
 	}
 }
 
+void ATrackGenerator::OnConstruction(const FTransform& Transform)
+{
+	CreateMeshOnSpline();
+}
+
+// Called when the game starts or when spawned
+void ATrackGenerator::BeginPlay()
+{
+	Super::BeginPlay();
+
+}
+
+// Called every frame
+void ATrackGenerator::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+
+}
+
+void ATrackGenerator::DoWork(const TArray<FColor>& HeightTextureColors, const FVector& VertScale, FOnWorkFinished Callback)
+{
+	const uint32 Height = sqrt(HeightTextureColors.Num());
+	const uint32 Width = Height;
+
+	TrackNodes = CreateTrack(HeightTextureColors, Width);
+
+	if (SplineComponent != nullptr)
+	{
+		SplineComponent->ClearSplinePoints();
+		CreateTrackSpline(HeightTextureColors, Height, Width, VertScale);
+		SplineComponent->SetClosedLoop(true);
+	}
+
+	CreateMeshOnSpline();
+
+	Super::DoWork(HeightTextureColors, VertScale, Callback);
+}
+
+
+#pragma region TextureToSpline
+
+FVector2D ATrackGenerator::AddDirectionToPosition(const FVector2D& Vector2D, const Direction& Direction)
+{
+	FVector2D MoveVec;
+
+	switch (Direction)
+	{
+	case Direction::UpLeft:
+		MoveVec = FVector2D(-1.0, -1.0);
+		break;
+	case Direction::Up:
+		MoveVec = FVector2D(0.0, -1.0);
+		break;
+	case Direction::UpRight:
+		MoveVec = FVector2D(1.0, -1.0);
+		break;
+	case Direction::Right:
+		MoveVec = FVector2D(1.0, 0.0);
+		break;
+	case Direction::DownRight:
+		MoveVec = FVector2D(1.0, 1.0);
+		break;
+	case Direction::Down:
+		MoveVec = FVector2D(0.0, 1.0);
+		break;
+	case Direction::DownLeft:
+		MoveVec = FVector2D(-1.0, 1.0);
+		break;
+	case Direction::Left:
+		MoveVec = FVector2D(-1.0, 0.0);
+		break;
+	default:
+		MoveVec = FVector2D(0.0, 0.0);
+		break;
+	}
+
+	return Vector2D + MoveVec;
+}
+
+TArray<FTrackNode> ATrackGenerator::CreateTrack(const TArray<FColor>& HeightTextureColors, const uint32 TextureWidth)
+{
+	TArray<FTrackNode> TrackNodes;
+
+	FTrackNode trackNode = FindFirstTrackNode(HeightTextureColors, TextureWidth);
+	TrackNodes.Add(trackNode);
+	constexpr uint8 MinNumberOfNodes = 3;
+
+	for (uint8 i = 0; i < MinNumberOfNodes; i++)
+	{
+		trackNode = FindNextTrackNode(HeightTextureColors, TextureWidth, trackNode);
+		TrackNodes.Add(trackNode);
+	}
+
+	while (ShouldFindAnotherTrackNode(TrackNodes))
+	{
+		trackNode = FindNextTrackNode(HeightTextureColors, TextureWidth, trackNode);
+		TrackNodes.Add(trackNode);
+	}
+
+	return TrackNodes;
+}
+
+FTrackNode ATrackGenerator::FindFirstTrackNode(const TArray<FColor>& HeightTextureColors, const uint32 TextureWidth)
+{
+	for (uint32 y = TextureWidth * 3 / 4; y < TextureWidth; y++)
+	{
+		for (uint32 x = 0; x < TextureWidth / 2; x++)
+		{
+			FColor pixelColor = HeightTextureColors[y * TextureWidth + x];
+
+			if (pixelColor.A < 255)
+			{
+				return FTrackNode(FVector2D(x, y), Direction::Left);
+			}
+		}
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("ATrackGenerator::FindFirstTrackNode Couldn't find the first node"));
+	return FTrackNode(FVector2D(0, TextureWidth - 1), Direction::Left);
+}
+
+FTrackNode ATrackGenerator::FindNextTrackNode(const TArray<FColor>& HeightTextureColors, const uint32 TextureWidth, const FTrackNode& CurrentNode)
+{
+	Direction currentDirection = CurrentNode.PrevPointDirection + 1;
+
+	for (int i = 0; i < 7; i++)
+	{
+		FVector2D NeighbourPos = AddDirectionToPosition(CurrentNode.Position, currentDirection);
+
+		if (NeighbourPos.X > 0 && NeighbourPos.X < TextureWidth &&
+			NeighbourPos.Y > 0 && NeighbourPos.Y < TextureWidth)
+		{
+			FColor pixelColor = HeightTextureColors[NeighbourPos.Y * TextureWidth + NeighbourPos.X];
+
+			if (pixelColor.A < 255)
+			{
+				break;
+			}
+		}
+
+		currentDirection = currentDirection + 1;
+	}
+
+	Direction directionToOrigin = currentDirection + 4;
+	return FTrackNode(AddDirectionToPosition(CurrentNode.Position, currentDirection), directionToOrigin);
+}
+
+bool ATrackGenerator::ShouldFindAnotherTrackNode(const TArray<FTrackNode>& TrackNodes)
+{
+	check(TrackNodes.Num() >= 3);
+
+	FTrackNode firstNode = TrackNodes[0];
+	FTrackNode lastNode = TrackNodes.Last();
+
+	return FVector2D::DistSquared(firstNode.Position, lastNode.Position) > 2;
+}
+
+#pragma endregion
+
+void ATrackGenerator::CreateTrackSpline(const TArray<FColor>& HeightTextureColors, const uint32 Height, const uint32 Width, const FVector& VertScale)
+{
+	for (FTrackNode& TrackNode : TrackNodes)
+	{
+		uint8 HeightValue = HeightTextureColors[TrackNode.Position.Y * Width + TrackNode.Position.X].R;
+		FVector SplinePos =
+		{
+			(TrackNode.Position.X - Width / 2) * VertScale.X,
+			(TrackNode.Position.Y - Height / 2) * VertScale.Y,
+			(HeightValue - 255 / 2) / 255.0 * VertScale.Z
+		};
+
+		SplineComponent->AddSplinePoint(SplinePos, ESplineCoordinateSpace::Local);
+	}
+}
+
+#pragma region SpawningMesh
+
 FVector ATrackGenerator::GetMeshLength() const
 {
 	if (TrackMesh != nullptr)
@@ -59,8 +236,6 @@ void ATrackGenerator::SpawnMeshPerSplinePoint(const uint32 NumberOfSplinePoints,
 		PosDirectionOffset.Normalize();
 		PosDirectionOffset *= MeshOffset.Y;
 
-		SplineTangents.Add(StartTangent);
-
 		SplineMeshComponent->SetStartAndEnd(StartPos - PosDirectionOffset, StartTangent, EndPos - PosDirectionOffset, EndTangent);
 		//SplineMeshComponent->SetStartAndEnd(StartPos, StartTangent, EndPos, EndTangent);
 		SplineMeshComponent->SetCollisionEnabled(ECollisionEnabled::PhysicsOnly);
@@ -96,7 +271,8 @@ void ATrackGenerator::SpawnMeshBasedOnMeshLength(const FVector& MeshSize)
 
 		//SplineMeshComponent->SetStartAndEnd(StartPos - startOffset, StartTangent, EndPos - endOffset, EndTangent);
 		SplineMeshComponent->SetStartAndEnd(StartPos, StartTangent, EndPos, EndTangent);
-		SplineMeshComponent->SetCollisionEnabled(ECollisionEnabled::PhysicsOnly);
+		SplineMeshComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		SplineMeshComponent->SetRelativeScale3D(MeshScale);
 ;
 		/*FRotator testRot = SplineComponent->GetRotationAtDistanceAlongSpline(MeshLength * MeshCounter, ESplineCoordinateSpace::Local);
 
@@ -113,7 +289,7 @@ void ATrackGenerator::SpawnMeshBasedOnMeshLength(const FVector& MeshSize)
 	
 }
 
-void ATrackGenerator::CreateMeshToSpline()
+void ATrackGenerator::CreateMeshOnSpline()
 {
 	if (SplineComponent != nullptr && TrackMesh != nullptr)
 	{
@@ -130,71 +306,20 @@ void ATrackGenerator::CreateMeshToSpline()
 		}
 		UE_LOG(LogTemp, Warning, TEXT("Number of meshes attached: %d"), MeshComponents.Num());
 
-		TArray<AActor*> Testers;
+		/*TArray<AActor*> Testers;
 		GetAttachedActors(Testers);
 		int number = Testers.Num();
 		for (int i = 0; i < number; i++)
 		{
 			GetWorld()->DestroyActor(Testers[i]);
-		}
+		}*/
 
 		const uint32 NumberOfSplinePoints = SplineComponent->GetNumberOfSplinePoints();
 		FVector MeshOffset = GetMeshLength() / 2.0;
-		SplineTangents.Empty(NumberOfSplinePoints);
 
 		//SpawnMeshPerSplinePoint(NumberOfSplinePoints, MeshOffset);
 		SpawnMeshBasedOnMeshLength(GetMeshLength());
 	}
 }
 
-void ATrackGenerator::OnConstruction(const FTransform& Transform)
-{
-	CreateMeshToSpline();
-}
-
-
-// Called when the game starts or when spawned
-void ATrackGenerator::BeginPlay()
-{
-	Super::BeginPlay();
-
-	TArray<uint8> TrackMapArray;
-	constexpr uint32 Size = 64;
-	TrackMapArray.Empty(Size * Size);
-	TrackMapArray.AddZeroed(Size * Size);
-
-	if (SplineComponent != nullptr)
-	{
-		TQueue<FVector> TrackMapQueue;
-		// Fixed Spline Pos queue
-		TrackMapQueue.Enqueue({ 16, 16, 0 });
-		//TrackMapQueue.Enqueue({ 32, 16, 0 });
-		TrackMapQueue.Enqueue({ 48, 16, 0 });
-		//TrackMapQueue.Enqueue({ 48, 32, 0 });
-		TrackMapQueue.Enqueue({ 48, 48, 0 });
-		//TrackMapQueue.Enqueue({ 32, 48, 0 });
-		TrackMapQueue.Enqueue({ 16, 48, 0 });
-		//TrackMapQueue.Enqueue({ 16, 32, 0 });
-		TrackMapQueue.Enqueue({ 16, 16, 0 });
-
-		SplineComponent->ClearSplinePoints();
-		// Adding spline points to the array
-		FVector SplinePos;
-		while (TrackMapQueue.Dequeue(SplinePos))
-		{
-			SplinePos = (SplinePos - Size / 2) * VertSpacing;
-			SplinePos.Z = 0.0;
-			SplineComponent->AddSplinePoint(SplinePos, ESplineCoordinateSpace::Local);
-		}
-
-		CreateMeshToSpline();
-	}
-}
-
-// Called every frame
-void ATrackGenerator::Tick(float DeltaTime)
-{
-	Super::Tick(DeltaTime);
-
-}
-
+#pragma endregion
