@@ -35,6 +35,9 @@ public:
 	UFUNCTION()
 	static TArray<FVector> CalculateNormals(const TArray<FVector>& Verts, const TArray<int32> Triangles, const uint32 Size);
 
+	UFUNCTION()
+	static TArray<FVector2D> CalculateUVs(const uint32 Size);
+
 	ATerrainGenerator();
 
 	UFUNCTION()
@@ -73,6 +76,7 @@ private:
 
 	TArray<int32> TriangleIndices;
 
+	UPROPERTY(VisibleAnywhere)
 	TArray<FVector2D> UV;
 
 	TArray<FVector> Normals;

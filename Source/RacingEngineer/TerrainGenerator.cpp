@@ -40,6 +40,7 @@ void ATerrainGenerator::CreateTerrain(const TArray<FColor>& HeightTextureColors,
 {
 	const uint32 TextureWidth = sqrt(HeightTextureColors.Num());
 
+	UV = CalculateUVs(TextureWidth);
 	Vertices = CalculateVertices(TextureWidth, VertScale);
 	AlterVerticesHeight(Vertices, TextureWidth, HeightTextureColors, VertScale);
 	TriangleIndices = CalculateTriangles(TextureWidth);
@@ -136,6 +137,19 @@ TArray<FVector> ATerrainGenerator::CalculateVertices(const uint32 Size, const FV
 	return Verts;
 }
 
+TArray<FVector2D> ATerrainGenerator::CalculateUVs(const uint32 Size)
+{
+	TArray<FVector2D> UVs;
+	UVs.Reserve(Size * Size);
+	for (uint32 y = 0; y < Size; y++)
+	{
+		for (uint32 x = 0; x < Size; x++)
+		{
+			UVs.Emplace(x / (Size - 1.0), y / (Size - 1.0));
+		}
+	}
+	return UVs;
+}
 
 TArray<int32> ATerrainGenerator::CalculateTriangles(const uint32 Size)
 {
