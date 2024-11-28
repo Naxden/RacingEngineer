@@ -6,6 +6,7 @@
 #include "Components/SplineComponent.h"
 #include "Components/SplineMeshComponent.h"
 #include "Kismet/KismetMathLibrary.h"
+#include "Kismet/KismetSystemLibrary.h"
 
 // Sets default values
 ATrackGenerator::ATrackGenerator()
@@ -47,12 +48,12 @@ void ATrackGenerator::DoWork(const TArray<FColor>& HeightTextureColors, const FV
 	const uint32 Height = sqrt(HeightTextureColors.Num());
 	const uint32 Width = Height;
 
-	TrackNodes = CreateTrack(HeightTextureColors, Width);
+	TrackNodes = CreateTrack(HeightTextureColors, Width, NodeToSkip);
 
 	if (SplineComponent != nullptr)
 	{
 		SplineComponent->ClearSplinePoints();
-		CreateTrackSpline(HeightTextureColors, Height, Width, VertScale);
+		CreateTrackSpline(SplineComponent, TrackNodes, HeightTextureColors, Height, Width, VertScale);
 		SplineComponent->SetClosedLoop(true);
 	}
 
@@ -64,34 +65,34 @@ void ATrackGenerator::DoWork(const TArray<FColor>& HeightTextureColors, const FV
 
 #pragma region TextureToSpline
 
-FVector2D ATrackGenerator::AddDirectionToPosition(const FVector2D& Vector2D, const Direction& Direction)
+FVector2D ATrackGenerator::AddDirectionToPosition(const FVector2D& Vector2D, const EDirection& Direction)
 {
 	FVector2D MoveVec;
 
 	switch (Direction)
 	{
-	case Direction::UpLeft:
+	case EDirection::UpLeft:
 		MoveVec = FVector2D(-1.0, -1.0);
 		break;
-	case Direction::Up:
+	case EDirection::Up:
 		MoveVec = FVector2D(0.0, -1.0);
 		break;
-	case Direction::UpRight:
+	case EDirection::UpRight:
 		MoveVec = FVector2D(1.0, -1.0);
 		break;
-	case Direction::Right:
+	case EDirection::Right:
 		MoveVec = FVector2D(1.0, 0.0);
 		break;
-	case Direction::DownRight:
+	case EDirection::DownRight:
 		MoveVec = FVector2D(1.0, 1.0);
 		break;
-	case Direction::Down:
+	case EDirection::Down:
 		MoveVec = FVector2D(0.0, 1.0);
 		break;
-	case Direction::DownLeft:
+	case EDirection::DownLeft:
 		MoveVec = FVector2D(-1.0, 1.0);
 		break;
-	case Direction::Left:
+	case EDirection::Left:
 		MoveVec = FVector2D(-1.0, 0.0);
 		break;
 	default:
@@ -102,7 +103,7 @@ FVector2D ATrackGenerator::AddDirectionToPosition(const FVector2D& Vector2D, con
 	return Vector2D + MoveVec;
 }
 
-TArray<FTrackNode> ATrackGenerator::CreateTrack(const TArray<FColor>& HeightTextureColors, const uint32 TextureWidth)
+TArray<FTrackNode> ATrackGenerator::CreateTrack(const TArray<FColor>& HeightTextureColors, const uint32 TextureWidth, const uint8 SkipNodesCount)
 {
 	TArray<FTrackNode> TrackNodes;
 
@@ -122,7 +123,22 @@ TArray<FTrackNode> ATrackGenerator::CreateTrack(const TArray<FColor>& HeightText
 		TrackNodes.Add(trackNode);
 	}
 
-	return TrackNodes;
+	if (SkipNodesCount > 0)
+	{
+		TArray<FTrackNode> TrackNodesReduced;
+		TrackNodesReduced.Reserve(TrackNodes.Num() / SkipNodesCount);
+		// Reduce the number of nodes
+		for (SIZE_T i = 0; i < TrackNodes.Num(); i += SkipNodesCount)
+		{
+			TrackNodesReduced.Add(TrackNodes[i]);
+		}
+
+		return TrackNodesReduced;
+	}
+	else
+	{
+		return TrackNodes;
+	}
 }
 
 FTrackNode ATrackGenerator::FindFirstTrackNode(const TArray<FColor>& HeightTextureColors, const uint32 TextureWidth)
@@ -135,18 +151,18 @@ FTrackNode ATrackGenerator::FindFirstTrackNode(const TArray<FColor>& HeightTextu
 
 			if (pixelColor.A < 255)
 			{
-				return FTrackNode(FVector2D(x, y), Direction::Left);
+				return FTrackNode(FVector2D(x, y), EDirection::Left);
 			}
 		}
 	}
 
 	UE_LOG(LogTemp, Warning, TEXT("ATrackGenerator::FindFirstTrackNode Couldn't find the first node"));
-	return FTrackNode(FVector2D(0, TextureWidth - 1), Direction::Left);
+	return FTrackNode(FVector2D(0, TextureWidth - 1), EDirection::Left);
 }
 
 FTrackNode ATrackGenerator::FindNextTrackNode(const TArray<FColor>& HeightTextureColors, const uint32 TextureWidth, const FTrackNode& CurrentNode)
 {
-	Direction currentDirection = CurrentNode.PrevPointDirection + 1;
+	EDirection currentDirection = CurrentNode.PrevPointDirection + 1;
 
 	for (int i = 0; i < 7; i++)
 	{
@@ -166,7 +182,7 @@ FTrackNode ATrackGenerator::FindNextTrackNode(const TArray<FColor>& HeightTextur
 		currentDirection = currentDirection + 1;
 	}
 
-	Direction directionToOrigin = currentDirection + 4;
+	EDirection directionToOrigin = currentDirection + 4;
 	return FTrackNode(AddDirectionToPosition(CurrentNode.Position, currentDirection), directionToOrigin);
 }
 
@@ -182,19 +198,22 @@ bool ATrackGenerator::ShouldFindAnotherTrackNode(const TArray<FTrackNode>& Track
 
 #pragma endregion
 
-void ATrackGenerator::CreateTrackSpline(const TArray<FColor>& HeightTextureColors, const uint32 Height, const uint32 Width, const FVector& VertScale)
+void ATrackGenerator::CreateTrackSpline(USplineComponent* Spline, const TArray<FTrackNode>& Nodes, const TArray<FColor>& HeightTextureColors, const uint32 Height, const uint32 Width, const FVector& VertScale)
 {
-	for (FTrackNode& TrackNode : TrackNodes)
+	if (Spline != nullptr)
 	{
-		uint8 HeightValue = HeightTextureColors[TrackNode.Position.Y * Width + TrackNode.Position.X].R;
-		FVector SplinePos =
+		for (const FTrackNode& TrackNode : Nodes)
 		{
-			(TrackNode.Position.X - Width / 2) * VertScale.X,
-			(TrackNode.Position.Y - Height / 2) * VertScale.Y,
-			(HeightValue - 255 / 2) / 255.0 * VertScale.Z
-		};
+			const uint8 HeightValue = HeightTextureColors[TrackNode.Position.Y * Width + TrackNode.Position.X].R;
+			FVector SplinePos =
+			{
+				(TrackNode.Position.X - Width / 2) * VertScale.X,
+				(TrackNode.Position.Y - Height / 2) * VertScale.Y,
+				(HeightValue - 255 / 2) / 255.0 * VertScale.Z
+			};
 
-		SplineComponent->AddSplinePoint(SplinePos, ESplineCoordinateSpace::Local);
+			Spline->AddSplinePoint(SplinePos, ESplineCoordinateSpace::Local);
+		}
 	}
 }
 
@@ -245,20 +264,23 @@ void ATrackGenerator::SpawnMeshPerSplinePoint(const uint32 NumberOfSplinePoints,
 void ATrackGenerator::SpawnMeshBasedOnMeshLength(const FVector& MeshSize)
 {
 	const float MeshLength = MeshSize.X;
-	uint32 MeshesToSpawnNumber = FMath::FloorToInt32(SplineComponent->GetSplineLength() / MeshLength);
-	for (uint32 MeshCounter = 0; MeshCounter < MeshesToSpawnNumber; MeshCounter++)
+	const uint32 MeshesToSpawn = FMath::FloorToInt32(SplineComponent->GetSplineLength() / MeshLength);
+	for (uint32 MeshCounter = 0; MeshCounter < MeshesToSpawn; MeshCounter++)
 	{
-		FVector StartPos = SplineComponent->GetLocationAtDistanceAlongSpline(MeshLength * MeshCounter, ESplineCoordinateSpace::Local);
-		FVector EndPos = SplineComponent->GetLocationAtDistanceAlongSpline(MeshLength * (MeshCounter + 1), ESplineCoordinateSpace::Local);
-		const FVector StartTangent = SplineComponent->GetTangentAtDistanceAlongSpline(MeshLength * MeshCounter, ESplineCoordinateSpace::Local);
-		const FVector EndTangent = SplineComponent->GetTangentAtDistanceAlongSpline(MeshLength * (MeshCounter + 1), ESplineCoordinateSpace::Local);
+		const double StartDistance = FMath::Min(MeshLength * MeshCounter, SplineComponent->GetSplineLength());
+		const double EndDistance = FMath::Min(MeshLength * (MeshCounter + 1), SplineComponent->GetSplineLength());
+
+		FVector StartPos = SplineComponent->GetLocationAtDistanceAlongSpline(StartDistance, ESplineCoordinateSpace::Local);
+		FVector EndPos = SplineComponent->GetLocationAtDistanceAlongSpline(EndDistance, ESplineCoordinateSpace::Local);
+		const FVector StartTangent = SplineComponent->GetTangentAtDistanceAlongSpline(StartDistance, ESplineCoordinateSpace::Local);
+		const FVector EndTangent = SplineComponent->GetTangentAtDistanceAlongSpline(EndDistance, ESplineCoordinateSpace::Local);
 
 		// Calculate the direction of the curve
-		FVector startOffset = UKismetMathLibrary::GetRightVector(SplineComponent->GetRotationAtDistanceAlongSpline(MeshLength * MeshCounter, ESplineCoordinateSpace::Local)).GetSafeNormal();
-		FVector endOffset = UKismetMathLibrary::GetRightVector(SplineComponent->GetRotationAtDistanceAlongSpline(MeshLength * (MeshCounter + 1), ESplineCoordinateSpace::Local)).GetSafeNormal();
+		FVector StartOffset = UKismetMathLibrary::GetRightVector(SplineComponent->GetRotationAtDistanceAlongSpline(StartDistance, ESplineCoordinateSpace::Local)).GetSafeNormal();
+		FVector EndOffset = UKismetMathLibrary::GetRightVector(SplineComponent->GetRotationAtDistanceAlongSpline(EndDistance, ESplineCoordinateSpace::Local)).GetSafeNormal();
 
-		startOffset *= MeshSize.Y / 2;
-		endOffset *= MeshSize.Y / 2;
+		StartOffset *= MeshSize.Y / 2;
+		EndOffset *= MeshSize.Y / 2;
 
 		const FName SplineMeshName = *FString::Printf(TEXT("TrackMesh%d"), MeshCounter);
 		USplineMeshComponent* SplineMeshComponent = NewObject<USplineMeshComponent>(this, USplineMeshComponent::StaticClass(), SplineMeshName);
@@ -268,13 +290,24 @@ void ATrackGenerator::SpawnMeshBasedOnMeshLength(const FVector& MeshSize)
 		SplineMeshComponent->CreationMethod = EComponentCreationMethod::UserConstructionScript;
 		SplineMeshComponent->RegisterComponentWithWorld(GetWorld());
 		SplineMeshComponent->AttachToComponent(SplineComponent, FAttachmentTransformRules::KeepRelativeTransform);
+		SplineMeshComponent->SetSplineUpDir(FVector::UpVector);
 
+		//const FVector WorldStartRot = SplineComponent->GetRotationAtDistanceAlongSpline(StartDistance, ESplineCoordinateSpace::World).Vector();
+
+		const FVector WorldStartTangent = SplineComponent->GetTangentAtDistanceAlongSpline(StartDistance, ESplineCoordinateSpace::World);
+		const FVector WorldStartPos = SplineComponent->GetLocationAtDistanceAlongSpline(StartDistance, ESplineCoordinateSpace::World);
+
+		UKismetSystemLibrary::DrawDebugSphere(GetWorld(), WorldStartPos, 10.0f, 12, FColor::Blue, 2.0f, 10.0f);
+		UKismetSystemLibrary::DrawDebugArrow(GetWorld(), WorldStartPos - (WorldStartTangent / 2.0f * TangentScalar), 
+			WorldStartPos + (WorldStartTangent * TangentScalar), 1.0f, FColor::Red, 2.0f, 10.0f);
+
+		
 		//SplineMeshComponent->SetStartAndEnd(StartPos - startOffset, StartTangent, EndPos - endOffset, EndTangent);
-		SplineMeshComponent->SetStartAndEnd(StartPos, StartTangent, EndPos, EndTangent);
-		SplineMeshComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-		SplineMeshComponent->SetRelativeScale3D(MeshScale);
+		SplineMeshComponent->SetStartAndEnd(StartPos, StartTangent * TangentScalar, EndPos, EndTangent * TangentScalar);
+		SplineMeshComponent->SetCollisionEnabled(ECollisionEnabled::PhysicsOnly);
+		SplineMeshComponent->SetCollisionProfileName(TEXT("BlockAll"));
 ;
-		/*FRotator testRot = SplineComponent->GetRotationAtDistanceAlongSpline(MeshLength * MeshCounter, ESplineCoordinateSpace::Local);
+		/*FRotator testRot = SplineComponent->GetRotationAtDistanceAlongSpline(StartDistance, ESplineCoordinateSpace::Local);
 
 		if (ActorToSpawn.Get() != nullptr)
 		{

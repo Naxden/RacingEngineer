@@ -8,7 +8,7 @@
 #include "TrackGenerator.generated.h"
 
 UENUM()
-enum class Direction : uint8
+enum class EDirection : uint8
 {
 	Left = 0,
 	DownLeft = 1,
@@ -20,9 +20,9 @@ enum class Direction : uint8
 	UpLeft = 7,
 };
 
-inline Direction operator+(const Direction& Dir, const int& Val)
+inline EDirection operator+(const EDirection& Dir, const int& Val)
 {
-	return static_cast<Direction>((static_cast<int>(Dir) + Val) % 8);
+	return static_cast<EDirection>((static_cast<int>(Dir) + Val) % 8);
 }
 
 USTRUCT()
@@ -34,7 +34,7 @@ struct FTrackNode
 	FVector2D Position = FVector2D::ZeroVector;
 
 	UPROPERTY(EditAnywhere)
-	Direction PrevPointDirection = Direction::Left;
+	EDirection PrevPointDirection = EDirection::Left;
 };
 
 class USplineComponent;
@@ -61,10 +61,13 @@ public:
 	virtual void DoWork(const TArray<FColor>& HeightTextureColors, const FVector& VertScale, FOnWorkFinished Callback) override;
 
 	UFUNCTION()
-	static FVector2D AddDirectionToPosition(const FVector2D& Vector2D, const Direction& Direction);
+	static FVector2D AddDirectionToPosition(const FVector2D& Vector2D, const EDirection& Direction);
 
 	UFUNCTION()
-	static TArray<FTrackNode> CreateTrack(const TArray<FColor>& HeightTextureColors, const uint32 TextureWidth);
+	static TArray<FTrackNode> CreateTrack(const TArray<FColor>& HeightTextureColors, const uint32 TextureWidth, const uint8 SkipNodesCount);
+
+	static void CreateTrackSpline(USplineComponent* Spline, const TArray<FTrackNode>& Nodes, const TArray<FColor>& HeightTextureColors, const uint32
+	                              Height, const uint32 Width, const FVector& VertScale);
 
 public:
 	UPROPERTY(EditAnywhere)
@@ -84,8 +87,6 @@ private:
 	UFUNCTION()
 	static bool ShouldFindAnotherTrackNode(const TArray<FTrackNode>& TrackNodes);
 
-	void CreateTrackSpline(const TArray<FColor>& HeightTextureColors, const uint32 Height, const uint32 Width, const FVector& VertScale);
-
 	void SpawnMeshBasedOnMeshLength(const FVector& MeshSize);
 	void CreateMeshOnSpline();
 
@@ -96,6 +97,12 @@ private:
 	UPROPERTY(EditAnywhere)
 	TSubclassOf<AActor> ActorToSpawn;
 
+	UPROPERTY(EditAnywhere)
+	uint8 NodeToSkip = 10;
+
 	UPROPERTY(VisibleInstanceOnly)
 	TArray<FTrackNode> TrackNodes;
+
+	UPROPERTY(EditAnywhere)
+	double TangentScalar = 1.0;
 };
