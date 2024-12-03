@@ -6,7 +6,6 @@
 #include "Components/SplineComponent.h"
 #include "Components/SplineMeshComponent.h"
 #include "Kismet/KismetMathLibrary.h"
-#include "Kismet/KismetSystemLibrary.h"
 
 // Sets default values
 ATrackGenerator::ATrackGenerator()
@@ -163,6 +162,7 @@ FTrackNode ATrackGenerator::FindFirstTrackNode(const TArray<FColor>& HeightTextu
 FTrackNode ATrackGenerator::FindNextTrackNode(const TArray<FColor>& HeightTextureColors, const uint32 TextureWidth, const FTrackNode& CurrentNode)
 {
 	EDirection currentDirection = CurrentNode.PrevPointDirection + 1;
+	bool bFound = false;
 
 	for (int i = 0; i < 7; i++)
 	{
@@ -173,13 +173,20 @@ FTrackNode ATrackGenerator::FindNextTrackNode(const TArray<FColor>& HeightTextur
 		{
 			FColor pixelColor = HeightTextureColors[NeighbourPos.Y * TextureWidth + NeighbourPos.X];
 
-			if (pixelColor.A < 255)
+			if (pixelColor.A == 255)
 			{
+				bFound = true;
 				break;
 			}
 		}
 
 		currentDirection = currentDirection + 1;
+	}
+
+	if (!bFound)
+	{
+		UE_LOG(LogTemp, Error, TEXT("ATrackGenerator::FindNextTrackNode Couldn't find the next node"));
+		check(false);
 	}
 
 	EDirection directionToOrigin = currentDirection + 4;
@@ -267,8 +274,8 @@ void ATrackGenerator::SpawnMeshBasedOnMeshLength(const FVector& MeshSize)
 	const uint32 MeshesToSpawn = FMath::FloorToInt32(SplineComponent->GetSplineLength() / MeshLength);
 	for (uint32 MeshCounter = 0; MeshCounter < MeshesToSpawn; MeshCounter++)
 	{
-		const double StartDistance = FMath::Min(MeshLength * MeshCounter, SplineComponent->GetSplineLength());
-		const double EndDistance = FMath::Min(MeshLength * (MeshCounter + 1), SplineComponent->GetSplineLength());
+		const float StartDistance = MeshLength * MeshCounter;
+		const float EndDistance = MeshCounter + 1 != MeshesToSpawn ? MeshLength * (MeshCounter + 1) : SplineComponent->GetSplineLength();
 
 		FVector StartPos = SplineComponent->GetLocationAtDistanceAlongSpline(StartDistance, ESplineCoordinateSpace::Local);
 		FVector EndPos = SplineComponent->GetLocationAtDistanceAlongSpline(EndDistance, ESplineCoordinateSpace::Local);
@@ -292,32 +299,20 @@ void ATrackGenerator::SpawnMeshBasedOnMeshLength(const FVector& MeshSize)
 		SplineMeshComponent->AttachToComponent(SplineComponent, FAttachmentTransformRules::KeepRelativeTransform);
 		SplineMeshComponent->SetSplineUpDir(FVector::UpVector);
 
-		//const FVector WorldStartRot = SplineComponent->GetRotationAtDistanceAlongSpline(StartDistance, ESplineCoordinateSpace::World).Vector();
+		
+		// Debug draw the start position and tangent
+		//const FVector WorldStartTangent = SplineComponent->GetTangentAtDistanceAlongSpline(StartDistance, ESplineCoordinateSpace::World);
+		//const FVector WorldStartPos = SplineComponent->GetLocationAtDistanceAlongSpline(StartDistance, ESplineCoordinateSpace::World);
 
-		const FVector WorldStartTangent = SplineComponent->GetTangentAtDistanceAlongSpline(StartDistance, ESplineCoordinateSpace::World);
-		const FVector WorldStartPos = SplineComponent->GetLocationAtDistanceAlongSpline(StartDistance, ESplineCoordinateSpace::World);
-
-		UKismetSystemLibrary::DrawDebugSphere(GetWorld(), WorldStartPos, 10.0f, 12, FColor::Blue, 2.0f, 10.0f);
-		UKismetSystemLibrary::DrawDebugArrow(GetWorld(), WorldStartPos - (WorldStartTangent / 2.0f * TangentScalar), 
-			WorldStartPos + (WorldStartTangent * TangentScalar), 1.0f, FColor::Red, 2.0f, 10.0f);
+		//UKismetSystemLibrary::DrawDebugSphere(GetWorld(), WorldStartPos, 10.0f, 12, FColor::Blue, 2.0f, 10.0f);
+		//UKismetSystemLibrary::DrawDebugArrow(GetWorld(), WorldStartPos - (WorldStartTangent / 2.0f * TangentScalar), 
+		//	WorldStartPos + (WorldStartTangent * TangentScalar), 1.0f, FColor::Red, 2.0f, 10.0f);
 
 		
 		//SplineMeshComponent->SetStartAndEnd(StartPos - startOffset, StartTangent, EndPos - endOffset, EndTangent);
 		SplineMeshComponent->SetStartAndEnd(StartPos, StartTangent * TangentScalar, EndPos, EndTangent * TangentScalar);
 		SplineMeshComponent->SetCollisionEnabled(ECollisionEnabled::PhysicsOnly);
 		SplineMeshComponent->SetCollisionProfileName(TEXT("BlockAll"));
-;
-		/*FRotator testRot = SplineComponent->GetRotationAtDistanceAlongSpline(StartDistance, ESplineCoordinateSpace::Local);
-
-		if (ActorToSpawn.Get() != nullptr)
-		{
-			AActor* SpawnedActor = GetWorld()->SpawnActor<AActor>(ActorToSpawn, StartPos + GetTransform().GetLocation(), testRot);
-			if (SpawnedActor)
-			{
-				SpawnedActor->AttachToComponent(RootComponent, FAttachmentTransformRules::KeepWorldTransform);
-				SpawnedActor->SetActorLabel(FString::Printf(TEXT("Tester%d"), MeshCounter));
-			}
-		}*/
 	}
 	
 }
@@ -338,14 +333,6 @@ void ATrackGenerator::CreateMeshOnSpline()
 			}
 		}
 		UE_LOG(LogTemp, Warning, TEXT("Number of meshes attached: %d"), MeshComponents.Num());
-
-		/*TArray<AActor*> Testers;
-		GetAttachedActors(Testers);
-		int number = Testers.Num();
-		for (int i = 0; i < number; i++)
-		{
-			GetWorld()->DestroyActor(Testers[i]);
-		}*/
 
 		const uint32 NumberOfSplinePoints = SplineComponent->GetNumberOfSplinePoints();
 		FVector MeshOffset = GetMeshLength() / 2.0;

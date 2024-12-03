@@ -95,14 +95,10 @@ private:
 
 private:
 	UPROPERTY(EditAnywhere)
-	TSubclassOf<AActor> ActorToSpawn;
-
-	UPROPERTY(EditAnywhere)
 	uint8 NodeToSkip = 10;
-
-	UPROPERTY(VisibleInstanceOnly)
-	TArray<FTrackNode> TrackNodes;
 
 	UPROPERTY(EditAnywhere)
 	double TangentScalar = 1.0;
+
+	TArray<FTrackNode> TrackNodes;
 };
