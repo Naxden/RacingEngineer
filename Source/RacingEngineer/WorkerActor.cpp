@@ -11,7 +11,8 @@ AWorkerActor::AWorkerActor()
 
 }
 
-void AWorkerActor::DoWork(const TArray<FColor>& HeightTextureColors, const FVector& VertScale, FOnWorkFinished Callback)
+void AWorkerActor::DoWork(const TArray<FColor>& HeightTextureColors, const USplineComponent* TrackSpline, const FVector& VertScale, const
+                          FOnWorkFinished Callback)
 {
 	if (Callback.IsBound())
 	{

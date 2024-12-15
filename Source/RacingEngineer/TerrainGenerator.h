@@ -7,6 +7,8 @@
 #include "GameFramework/Actor.h"
 #include "TerrainGenerator.generated.h"
 
+class ATrackGenerator;
+class USplineComponent;
 struct FProcMeshTangent;
 class UProceduralMeshComponent;
 
@@ -43,9 +45,13 @@ public:
 	UFUNCTION()
 	TArray<FVector> CalculateVertices(const uint32 Size, const FVector& VertScale) const;
 	UFUNCTION()
-	void AlterVerticesHeight(TArray<FVector>& outVertices, const uint32 Size, const TArray<FColor>& TexColors, const FVector& VertScale) const;
+	void AlterVerticesHeight(TArray<FVector>& outVertices, const USplineComponent* TrackSpline, const uint32 Size, const TArray<FColor>& TexColors, const
+	                         FVector& VertScale) const;
 
-	virtual void DoWork(const TArray<FColor>& HeightTextureColors, const FVector& VertScale, FOnWorkFinished Callback) override;
+	void AlterVerticesHeight(USplineComponent* Spline, float TrackMeshWidth);
+
+	virtual void DoWork(const TArray<FColor>& HeightTextureColors, const USplineComponent* TrackSpline, const FVector& VertScale, const
+	                    FOnWorkFinished Callback) override;
 
 protected:
 	// Called when the game starts or when spawned
@@ -58,7 +64,7 @@ public:
 private:
 
 	UFUNCTION()
-	void CreateTerrain(const TArray<FColor>& HeightTextureColors, const FVector& VertScale);
+	void CreateTerrain(const TArray<FColor>& HeightTextureColors, const USplineComponent* TrackSpline, const FVector& VertScale);
 
 	UPROPERTY(VisibleAnywhere)
 	UProceduralMeshComponent* ProceduralMesh;
@@ -76,8 +82,13 @@ private:
 
 	TArray<int32> TriangleIndices;
 
-	UPROPERTY(VisibleAnywhere)
 	TArray<FVector2D> UV;
 
 	TArray<FVector> Normals;
+
+	UPROPERTY(EditAnywhere)
+	TWeakObjectPtr<ATrackGenerator> TrackGenerator;
+
+	UPROPERTY(EditAnywhere)
+	float MeshHeightScalar = 0.1f;
 };

@@ -4,6 +4,8 @@
 #include "TerrainGenerator.h"
 #include "ProceduralMeshComponent.h"
 #include "KismetProceduralMeshLibrary.h"
+#include "TrackGenerator.h"
+#include "Components/SplineComponent.h"
 
 using UE::Math::TVector;
 // Sets default values
@@ -29,20 +31,20 @@ void ATerrainGenerator::Tick(float DeltaTime)
 	Super::Tick(DeltaTime);
 }
 
-void ATerrainGenerator::DoWork(const TArray<FColor>& HeightTextureColors, const FVector& VertScale, FOnWorkFinished Callback)
+void ATerrainGenerator::DoWork(const TArray<FColor>& HeightTextureColors, const USplineComponent* TrackSpline, const FVector& VertScale, const FOnWorkFinished Callback)
 {
-	CreateTerrain(HeightTextureColors, VertScale);
+	CreateTerrain(HeightTextureColors, TrackSpline, VertScale);
 
-	Super::DoWork(HeightTextureColors, VertScale, Callback);
+	Super::DoWork(HeightTextureColors, TrackSpline, VertScale, Callback);
 }
 
-void ATerrainGenerator::CreateTerrain(const TArray<FColor>& HeightTextureColors, const FVector& VertScale)
+void ATerrainGenerator::CreateTerrain(const TArray<FColor>& HeightTextureColors, const USplineComponent* TrackSpline, const FVector& VertScale)
 {
 	const uint32 TextureWidth = sqrt(HeightTextureColors.Num());
 
 	UV = CalculateUVs(TextureWidth);
 	Vertices = CalculateVertices(TextureWidth, VertScale);
-	AlterVerticesHeight(Vertices, TextureWidth, HeightTextureColors, VertScale);
+	AlterVerticesHeight(Vertices, TrackSpline, TextureWidth, HeightTextureColors, VertScale);
 	TriangleIndices = CalculateTriangles(TextureWidth);
 
 	TArray<FProcMeshTangent> Tangents1;
@@ -77,36 +79,65 @@ void ATerrainGenerator::CreateTerrain(const TArray<FColor>& HeightTextureColors,
 
 }
 
-void ATerrainGenerator::AlterVerticesHeight(TArray<FVector>& outVertices, const uint32 Size, const TArray<FColor>& TexColors, const FVector& VertScale) const
+void ATerrainGenerator::AlterVerticesHeight(TArray<FVector>& outVertices, const USplineComponent* TrackSpline, const uint32 Size, const TArray<FColor>& TexColors, const FVector& VertScale) const
 {
 	for (uint32 y = 0; y < Size; y++)
 	{
 		for (uint32 x = 0; x < Size; x++)
 		{
 			constexpr uint8 Offset = 127;
-			FVector& currentVert = outVertices[y * Size + x];
-			const FColor& currentColor = TexColors[y * Size + x];
+			FVector& CurrentVert = outVertices[y * Size + x];
+			const FColor& CurrentColor = TexColors[y * Size + x];
 
-			uint8 colorValue = 0;
+			uint8 ColorValue = 0;
 			switch (TextureChannel)
 			{
 			case EColorChannel::Red:
-				colorValue = currentColor.R;
+				ColorValue = CurrentColor.R;
 				break;
 			case EColorChannel::Green:
-				colorValue = currentColor.G;
+				ColorValue = CurrentColor.G;
 				break;
 			case EColorChannel::Blue:
-				colorValue = currentColor.B;
+				ColorValue = CurrentColor.B;
 				break;
 			case EColorChannel::Alpha:
-				colorValue = currentColor.A;
+				ColorValue = CurrentColor.A;
 				break;
 			default:
 				break;
 			}
+;
+			CurrentVert.Z += (ColorValue - Offset) / 255.0 * VertScale.Z;
+			
+			float MeshWidth = 0.0f;
+			float MeshHeight = 0.0f;
 
-			currentVert.Z += (colorValue - Offset) / 255.0 * VertScale.Z;
+			if (TrackGenerator.IsValid())
+			{
+				const FVector MeshSize = TrackGenerator->GetTrackMeshSize();
+				MeshWidth = MeshSize.Y;
+				MeshHeight = MeshSize.Z * MeshHeightScalar;
+			}
+
+			if (TrackSpline != nullptr)
+			{
+				const FVector ClosestSplinePos = TrackSpline->FindLocationClosestToWorldLocation(CurrentVert, ESplineCoordinateSpace::World);
+				const float Distance = FVector::Dist(CurrentVert, ClosestSplinePos);
+				const float MeshOffset = MeshWidth * 0.35f;
+
+				// If it's under the track mesh with some offset
+				if (Distance <= MeshWidth / 2 + MeshOffset)
+				{
+					CurrentVert.Z = ClosestSplinePos.Z - MeshHeight;
+				}
+				// If it's near the track mesh but not under it
+				else if (Distance <= MeshWidth + MeshOffset)
+				{
+					const float Alpha = (MeshWidth + MeshOffset) / Distance - 1.0f;
+					CurrentVert.Z = FMath::Lerp(CurrentVert.Z, ClosestSplinePos.Z - MeshHeight, Alpha);
+				}
+			}
 		}
 	}
 }

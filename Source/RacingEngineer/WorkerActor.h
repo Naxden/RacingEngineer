@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Components/SplineComponent.h"
 #include "GameFramework/Actor.h"
 #include "WorkerActor.generated.h"
 
@@ -17,7 +18,8 @@ public:
 	// Sets default values for this actor's properties
 	AWorkerActor();
 
-	virtual void DoWork(const TArray<FColor>& HeightTextureColors, const FVector& VertScale, FOnWorkFinished Callback);
+	virtual void DoWork(const TArray<FColor>& HeightTextureColors, const USplineComponent* TrackSpline, const FVector& VertScale, const
+	                    FOnWorkFinished Callback);
 
 protected:
 	// Called when the game starts or when spawned
