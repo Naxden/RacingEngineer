@@ -49,8 +49,6 @@ void ATerrainGenerator::CreateTerrain(const TArray<FColor>& HeightTextureColors,
 
 	TArray<FProcMeshTangent> Tangents1;
 
-	const uint32 TimerStart = FPlatformTime::Cycles();
-
 	if (UseBuiltInNormalsAndTangents)
 	{
 		TArray<FProcMeshTangent> Tangents;
@@ -60,10 +58,6 @@ void ATerrainGenerator::CreateTerrain(const TArray<FColor>& HeightTextureColors,
 	{
 		Normals = CalculateNormals(Vertices, TriangleIndices, TextureWidth);
 	}
-
-	const uint32 TimerStop = FPlatformTime::Cycles();
-
-	UE_LOG(LogTemp, Warning, TEXT("Elapsed time %fms"), FPlatformTime::ToMilliseconds(TimerStop - TimerStart));
 
 	ProceduralMesh->CreateMeshSection(
 		0,
