@@ -24,6 +24,11 @@ void AMapManager::BeginPlay()
 {
 	Super::BeginPlay();
 
+	ScheduleWorkers();
+}
+
+void AMapManager::ScheduleWorkers()
+{
 	if (HeightMapTexture != nullptr && SplineComponent != nullptr)
 	{
 		TextureColors = GetColorsFromTexture(HeightMapTexture);
@@ -35,7 +40,14 @@ void AMapManager::BeginPlay()
 
 		for (const TObjectPtr<AWorkerActor>& Worker : Workers)
 		{
+			const uint32 TimerStart = FPlatformTime::Cycles();
+
 			Worker->DoWork(TextureColors, SplineComponent, VertSpacingScale, FOnWorkFinished::CreateUObject(this, &AMapManager::WorkerFinished));
+
+			const uint32 TimerStop = FPlatformTime::Cycles();
+
+			UE_LOG(LogTemp, Warning, TEXT("Worker %s elapsed time %fms"), *Worker->GetActorNameOrLabel(),
+				FPlatformTime::ToMilliseconds(TimerStop - TimerStart));
 		}
 	}
 	else

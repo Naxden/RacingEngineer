@@ -59,21 +59,18 @@ public:
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
 
-	UFUNCTION()
+	UFUNCTION(BlueprintCallable)
+	void ScheduleWorkers();
+
 	TArray<FColor> GetColorsFromTexture(UTexture2D* Texture);
 
 	static void GetColors(TArray<FColor>& ColorData, void* SrcData, uint32 TextureWidth, uint32 TextureHeight);
 
-	UFUNCTION()
 	static FTrackNode FindFirstTrackNode(const TArray<FColor>& HeightTextureColors, const uint32 TextureHeight, const uint32 TextureWidth);
-	UFUNCTION()
 	static FTrackNode FindNextTrackNode(const TArray<FColor>& HeightTextureColors, const uint32 TextureWidth, const FTrackNode& CurrentNode);
-	UFUNCTION()
 	static bool ShouldFindAnotherTrackNode(const TArray<FVector2D>& TrackNodes);
-	UFUNCTION()
 	static FVector2D AddDirectionToPosition(const FVector2D& Vector2D, const EDirection& Direction);
 
-	UFUNCTION()
 	static TArray<FVector2D> CreateTrack(const TArray<FColor>& HeightTextureColors, const uint32 TextureHeight,
 		const uint32 TextureWidth, const uint8 SkipNodesCount);
 
