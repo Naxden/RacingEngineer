@@ -94,12 +94,10 @@ void ACheckpointGenerator::OnCheckpointOverlapped(uint16 CheckpointIndex)
 	{
 		SpawnedTrackCheckpoints[CheckpointIndex]->SetMaterialToBasic();
 
-		TargetCheckpointIndex++;
+		TargetCheckpointIndex = (TargetCheckpointIndex + 1) % SpawnedTrackCheckpoints.Num();
 
-		if (TargetCheckpointIndex == SpawnedTrackCheckpoints.Num())
+		if (TargetCheckpointIndex == 1)
 		{
-			TargetCheckpointIndex = 0;
-
 			if (OnLapFinishedEvent.IsBound())
 			{
 				OnLapFinishedEvent.Broadcast(LapTime);
