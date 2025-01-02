@@ -61,6 +61,7 @@ public:
 
 	UFUNCTION(BlueprintCallable)
 	void ScheduleWorkers();
+	void SetPlayerStartLocation();
 
 	TArray<FColor> GetColorsFromTexture(UTexture2D* Texture);
 

@@ -4,7 +4,9 @@
 #include "MapManager.h"
 
 #include "TrackGenerator.h"
+#include "WheeledVehiclePawn.h"
 #include "Components/SplineComponent.h"
+#include "Kismet/GameplayStatics.h"
 
 // Sets default values
 AMapManager::AMapManager()
@@ -53,6 +55,41 @@ void AMapManager::ScheduleWorkers()
 	else
 	{
 		UE_LOG(LogTemp, Warning, TEXT("AMapManager::BeginPlay() HeightMapTexture or SplineComponent is nullptr"))
+	}
+}
+
+void AMapManager::SetPlayerStartLocation()
+{
+	if (SplineComponent != nullptr)
+	{
+		APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(this, 0);
+		if (PlayerPawn != nullptr)
+		{
+			AWheeledVehiclePawn* WheeledVehiclePawn = Cast<AWheeledVehiclePawn>(PlayerPawn);
+			if (WheeledVehiclePawn != nullptr)
+			{
+				USkeletalMeshComponent* PlayerSkeletalMesh = WheeledVehiclePawn->GetMesh();
+				if (PlayerSkeletalMesh != nullptr)
+				{
+					FVector StartLocation = SplineComponent->GetLocationAtSplinePoint(0, ESplineCoordinateSpace::World);
+					FRotator StartRotation = SplineComponent->GetRotationAtSplinePoint(0, ESplineCoordinateSpace::World);
+
+					PlayerSkeletalMesh->SetWorldLocationAndRotation(StartLocation, StartRotation, false, nullptr, ETeleportType::TeleportPhysics);
+				}
+			}
+			else
+			{
+				UE_LOG(LogTemp, Warning, TEXT("AMapManager::SetPlayerStartLocation() PlayerPawn is not a WheeledVehiclePawn"));
+			}
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("AMapManager::SetPlayerStartLocation() PlayerPawn is nullptr"));
+		}
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("AMapManager::SetPlayerStartLocation() SplineComponent was nullptr"));
 	}
 }
 
@@ -135,6 +172,12 @@ void AMapManager::WorkerFinished()
 {
 	++FinishedWorkersCounter;
 	UE_LOG(LogTemp, Log, TEXT("Worker has finished its work"));
+
+	if (FinishedWorkersCounter == Workers.Num())
+	{
+		SetPlayerStartLocation();
+		UE_LOG(LogTemp, Log, TEXT("All workers have finished their work"));
+	}
 }
 
 #pragma region TextureToSpline
