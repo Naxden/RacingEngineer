@@ -8,7 +8,7 @@ public class RacingEngineer : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
-		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "ChaosVehicles", "PhysicsCore", "Landscape"});
+		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "ChaosVehicles", "PhysicsCore", "Landscape", "SlateCore"});
 
 		PrivateDependencyModuleNames.AddRange( new string[] { "ProceduralMeshComponent", "RenderCore", "RHI" });
 	}
