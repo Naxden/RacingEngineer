@@ -17,11 +17,11 @@ class RACINGENGINEER_API URacingEngineerSaveGame : public USaveGame
 public:
 	URacingEngineerSaveGame();
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SaveGameData")
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "SaveGameData")
 	float BestLapTime = 0.0f;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SaveGameData")
-	FString MapTexturePath = TEXT("");
+	FString MapImagePath = TEXT("");
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SaveGameData")
 	FString SaveSlotName = TEXT("");

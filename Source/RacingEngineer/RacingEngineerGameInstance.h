@@ -16,7 +16,9 @@ class RACINGENGINEER_API URacingEngineerGameInstance : public UGameInstance
 	GENERATED_BODY()
 
 public:
-	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GameInstance")
+	bool bStartedFromMainMenu = false;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GameInstance")
 	TObjectPtr<UTexture2D> SelectedMapTexture;
 
