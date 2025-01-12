@@ -2,6 +2,7 @@
 
 
 #include "WorkerActor.h"
+#include "Async/Async.h"
 
 // Sets default values
 AWorkerActor::AWorkerActor()
@@ -11,13 +12,8 @@ AWorkerActor::AWorkerActor()
 
 }
 
-void AWorkerActor::DoWork(const TArray<FColor>& HeightTextureColors, const USplineComponent* TrackSpline, const FVector& VertScale, const
-                          FOnWorkFinished Callback)
+void AWorkerActor::DoWork(const FWorkerData& Data, const FOnWorkFinished Callback)
 {
-	if (Callback.IsBound())
-	{
-		Callback.Execute();
-	}
 }
 
 // Called when the game starts or when spawned

@@ -12,6 +12,8 @@ class ASplineTrackGenerator;
 class ATerrainGenerator;
 class ATrackGenerator;
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnInitializationUpdate, float, CompletePercentage);
+
 UENUM()
 enum class EDirection : uint8
 {
@@ -60,8 +62,16 @@ public:
 	virtual void Tick(float DeltaTime) override;
 
 	UFUNCTION(BlueprintCallable)
-	void ScheduleWorkers();
-	void SetPlayerStartLocation();
+	void InitializeMap(bool StartedFromMainMenu = false);
+
+	UPROPERTY(BlueprintAssignable)
+	FOnInitializationUpdate OnInitializationUpdate;
+
+	UFUNCTION(BlueprintCallable)
+	void MovePlayerToStart();
+
+	UFUNCTION(BlueprintCallable)
+	void SetHeightMapTexture(UTexture2D* Texture);
 
 	TArray<FColor> GetColorsFromTexture(UTexture2D* Texture);
 
@@ -78,6 +88,8 @@ public:
 	static void CreateTrackSpline(USplineComponent* Spline, const TArray<FVector2D>& Nodes, const TArray<FColor>& HeightTextureColors,
 		const uint32 Height, const uint32 Width, const FVector& VertScale);
 
+	static uint8 CalculateNodeToSkip(const uint32 TextureHeight, const uint32 TextureWidth);
+
 private:
 	void WorkerFinished();
 
@@ -89,7 +101,7 @@ private:
 	UTexture2D* HeightMapTexture;
 
 	UPROPERTY(EditAnywhere)
-	uint8 NodeToSkip = 10;
+	uint8 NodeToSkip = 1;
 
 	UPROPERTY(EditAnywhere)
 	FVector VertSpacingScale = FVector::OneVector;

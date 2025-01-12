@@ -48,10 +48,7 @@ public:
 	void AlterVerticesHeight(TArray<FVector>& outVertices, const USplineComponent* TrackSpline, const uint32 Size, const TArray<FColor>& TexColors, const
 	                         FVector& VertScale) const;
 
-	void AlterVerticesHeight(USplineComponent* Spline, float TrackMeshWidth);
-
-	virtual void DoWork(const TArray<FColor>& HeightTextureColors, const USplineComponent* TrackSpline, const FVector& VertScale, const
-	                    FOnWorkFinished Callback) override;
+	virtual void DoWork(const FWorkerData& Data, const FOnWorkFinished Callback) override;
 
 protected:
 	// Called when the game starts or when spawned

@@ -3,10 +3,11 @@
 
 #include "MapManager.h"
 
-#include "TrackGenerator.h"
 #include "WheeledVehiclePawn.h"
 #include "Components/SplineComponent.h"
 #include "Kismet/GameplayStatics.h"
+#include "Async/Async.h"
+#include "WorkerActor.h"
 
 // Sets default values
 AMapManager::AMapManager()
@@ -26,39 +27,70 @@ void AMapManager::BeginPlay()
 {
 	Super::BeginPlay();
 
-	ScheduleWorkers();
 }
 
-void AMapManager::ScheduleWorkers()
+void AMapManager::InitializeMap(bool StartedFromMainMenu)
 {
+
 	if (HeightMapTexture != nullptr && SplineComponent != nullptr)
 	{
+		const uint32 MapManagerTimer = FPlatformTime::Cycles();
+
 		TextureColors = GetColorsFromTexture(HeightMapTexture);
 
 		SplineComponent->ClearSplinePoints();
+
+		if (StartedFromMainMenu)
+		{
+			NodeToSkip = CalculateNodeToSkip(TextureHeight, TextureWidth);
+		}
+
 		TrackNodes = CreateTrack(TextureColors, TextureHeight, TextureWidth, NodeToSkip);
 		CreateTrackSpline(SplineComponent, TrackNodes, TextureColors, TextureHeight, TextureWidth, VertSpacingScale);
 		SplineComponent->SetClosedLoop(true);
 
+		const uint32 MapManagerTimerStop = FPlatformTime::Cycles();
+
+		UE_LOG(LogTemp, Warning, TEXT("MapManager elapsed time %fms"), 
+			FPlatformTime::ToMilliseconds(MapManagerTimerStop - MapManagerTimer));
+
+		TSharedRef<FWorkerData> WorkerData = MakeShared<FWorkerData>(TextureColors, SplineComponent, VertSpacingScale);
+
 		for (const TObjectPtr<AWorkerActor>& Worker : Workers)
 		{
-			const uint32 TimerStart = FPlatformTime::Cycles();
-
-			Worker->DoWork(TextureColors, SplineComponent, VertSpacingScale, FOnWorkFinished::CreateUObject(this, &AMapManager::WorkerFinished));
-
-			const uint32 TimerStop = FPlatformTime::Cycles();
-
-			UE_LOG(LogTemp, Warning, TEXT("Worker %s elapsed time %fms"), *Worker->GetActorNameOrLabel(),
-				FPlatformTime::ToMilliseconds(TimerStop - TimerStart));
+			if (Worker != nullptr)
+			{
+				AsyncTask(ENamedThreads::AnyBackgroundThreadNormalTask, [&Worker, this, WorkerData]
+				{
+						Worker->DoWork(WorkerData.Get(), FOnWorkFinished::CreateUObject(this, &AMapManager::WorkerFinished));
+				});
+			}
 		}
 	}
 	else
 	{
-		UE_LOG(LogTemp, Warning, TEXT("AMapManager::BeginPlay() HeightMapTexture or SplineComponent is nullptr"))
+		UE_LOG(LogTemp, Error, TEXT("AMapManager::BeginPlay() HeightMapTexture or SplineComponent is nullptr"))
 	}
 }
 
-void AMapManager::SetPlayerStartLocation()
+void AMapManager::WorkerFinished()
+{
+	++FinishedWorkersCounter;
+	UE_LOG(LogTemp, Log, TEXT("Worker has finished its work"));
+
+	if (FinishedWorkersCounter == Workers.Num())
+	{
+		MovePlayerToStart();
+		UE_LOG(LogTemp, Log, TEXT("All workers have finished their work"));
+	}
+
+	if (OnInitializationUpdate.IsBound())
+	{
+		OnInitializationUpdate.Broadcast(FinishedWorkersCounter / static_cast<float>(Workers.Num()));
+	}
+}
+
+void AMapManager::MovePlayerToStart()
 {
 	if (SplineComponent != nullptr)
 	{
@@ -71,6 +103,13 @@ void AMapManager::SetPlayerStartLocation()
 				USkeletalMeshComponent* PlayerSkeletalMesh = WheeledVehiclePawn->GetMesh();
 				if (PlayerSkeletalMesh != nullptr)
 				{
+					UPrimitiveComponent* PlayerRootComponent = Cast<UPrimitiveComponent>(PlayerPawn->GetRootComponent());
+					if (PlayerRootComponent != nullptr)
+					{
+						PlayerRootComponent->SetPhysicsLinearVelocity(FVector::ZeroVector);
+						PlayerRootComponent->SetPhysicsAngularVelocityInDegrees(FVector::ZeroVector);
+					}
+
 					FVector StartLocation = SplineComponent->GetLocationAtSplinePoint(0, ESplineCoordinateSpace::World);
 					FRotator StartRotation = SplineComponent->GetRotationAtSplinePoint(0, ESplineCoordinateSpace::World);
 
@@ -91,6 +130,11 @@ void AMapManager::SetPlayerStartLocation()
 	{
 		UE_LOG(LogTemp, Error, TEXT("AMapManager::SetPlayerStartLocation() SplineComponent was nullptr"));
 	}
+}
+
+void AMapManager::SetHeightMapTexture(UTexture2D* Texture)
+{
+	HeightMapTexture = Texture;
 }
 
 // Called every frame
@@ -165,18 +209,6 @@ void AMapManager::GetColors(TArray<FColor>& ColorData, void* SrcData, uint32 Tex
 	else
 	{
 		FMemory::Memcpy(ColorData.GetData(), SrcData, TextureResolution * sizeof(FColor));
-	}
-}
-
-void AMapManager::WorkerFinished()
-{
-	++FinishedWorkersCounter;
-	UE_LOG(LogTemp, Log, TEXT("Worker has finished its work"));
-
-	if (FinishedWorkersCounter == Workers.Num())
-	{
-		SetPlayerStartLocation();
-		UE_LOG(LogTemp, Log, TEXT("All workers have finished their work"));
 	}
 }
 
@@ -341,6 +373,28 @@ void AMapManager::CreateTrackSpline(USplineComponent* Spline, const TArray<FVect
 	else
 	{
 		UE_LOG(LogTemp, Error, TEXT("AMapManager::CreateTrackSpline Spline is nullptr"));
+	}
+}
+
+uint8 AMapManager::CalculateNodeToSkip(const uint32 TextureHeight, const uint32 TextureWidth)
+{
+	uint32 TextureSize = (TextureHeight + TextureWidth) / 2;
+
+	if (TextureSize >= 512)
+	{
+		return 12;
+	}
+	else if (TextureSize >= 256)
+	{
+		return 10;
+	}
+	else if (TextureSize >= 128)
+	{
+		return 5;
+	}
+	else
+	{
+		return 0;
 	}
 }
 

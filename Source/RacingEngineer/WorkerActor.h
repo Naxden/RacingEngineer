@@ -9,6 +9,30 @@
 
 DECLARE_DELEGATE(FOnWorkFinished);
 
+USTRUCT()
+struct FWorkerData
+{
+	GENERATED_BODY()
+
+	TArray<FColor> HeightTextureColors;
+	const USplineComponent* TrackSpline;
+	FVector VertScale;
+
+	FWorkerData()
+		: HeightTextureColors()
+		, TrackSpline(nullptr)
+		, VertScale(FVector::ZeroVector)
+	{
+	}
+
+	FWorkerData(const TArray<FColor>& InHeightTextureColors, const USplineComponent* InTrackSpline, const FVector& InVertScale)
+		: HeightTextureColors(InHeightTextureColors)
+		, TrackSpline(InTrackSpline)
+		, VertScale(InVertScale)
+	{
+	}
+};
+
 UCLASS()
 class RACINGENGINEER_API AWorkerActor : public AActor
 {
@@ -18,8 +42,7 @@ public:
 	// Sets default values for this actor's properties
 	AWorkerActor();
 
-	virtual void DoWork(const TArray<FColor>& HeightTextureColors, const USplineComponent* TrackSpline, const FVector& VertScale, const
-	                    FOnWorkFinished Callback);
+	virtual void DoWork(const FWorkerData& Data, const FOnWorkFinished Callback);
 
 protected:
 	// Called when the game starts or when spawned

@@ -7,6 +7,18 @@
 #include "GameFramework/Actor.h"
 #include "TrackGenerator.generated.h"
 
+USTRUCT()
+struct FTrackSplineSpawnData
+{
+	GENERATED_BODY()
+
+	FVector StartPos;
+	FVector EndPos;
+	FVector StartTangent;
+	FVector EndTangent;
+	FName SplineMeshName;
+};
+
 UCLASS()
 class RACINGENGINEER_API ATrackGenerator : public AWorkerActor
 {
@@ -24,8 +36,7 @@ public:
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
 
-	virtual void DoWork(const TArray<FColor>& HeightTextureColors, const USplineComponent* TrackSpline, const FVector& VertScale, const
-	                    FOnWorkFinished Callback) override;
+	virtual void DoWork(const FWorkerData& Data, const FOnWorkFinished Callback) override;
 	UFUNCTION()
 	FVector GetTrackMeshSize() const;
 public:
@@ -37,7 +48,17 @@ private:
 	void CreateMeshOnSpline(const USplineComponent* TrackSplineComponent);
 	void SpawnMeshPerSplinePoint(const USplineComponent* TrackSpline, const FVector& MeshOffset);
 
+	void PrepareTrackSplineMeshData(const USplineComponent* TrackSpline, const FVector&  MeshSize);
+	void SpawnTrackBasedOnPreparedData(TArray<FTrackSplineSpawnData>& TrackSpawnData, FOnWorkFinished Callback);
+
 private:
 	UPROPERTY(EditAnywhere)
 	double TangentScalar = 0.5;
+
+	UPROPERTY(EditAnywhere)
+	int32 BatchSize = 5;
+
+	TArray<FTrackSplineSpawnData> TrackMeshSpawnData;
+	int32 TrackMeshSpawned = 0;
+	FTimerDelegate SpawnBatchTrackMeshTimer;
 };

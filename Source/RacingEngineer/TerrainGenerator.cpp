@@ -15,6 +15,10 @@ ATerrainGenerator::ATerrainGenerator()
 	PrimaryActorTick.bCanEverTick = false;
 
 	ProceduralMesh = CreateDefaultSubobject<UProceduralMeshComponent>(TEXT("ProceduralMesh"));
+	if (ProceduralMesh != nullptr)
+	{
+		ProceduralMesh->SetCanEverAffectNavigation(false);
+	}
 	ProceduralMesh->SetupAttachment(GetRootComponent());
 }
 
@@ -31,11 +35,30 @@ void ATerrainGenerator::Tick(float DeltaTime)
 	Super::Tick(DeltaTime);
 }
 
-void ATerrainGenerator::DoWork(const TArray<FColor>& HeightTextureColors, const USplineComponent* TrackSpline, const FVector& VertScale, const FOnWorkFinished Callback)
+void ATerrainGenerator::DoWork(const FWorkerData& Data, const FOnWorkFinished Callback)
 {
-	CreateTerrain(HeightTextureColors, TrackSpline, VertScale);
+	CreateTerrain(Data.HeightTextureColors, Data.TrackSpline, Data.VertScale);
 
-	Super::DoWork(HeightTextureColors, TrackSpline, VertScale, Callback);
+	AsyncTask(ENamedThreads::GameThread, [this, Callback]
+	{
+			ProceduralMesh->CreateMeshSection(
+				0,
+				Vertices,
+				TriangleIndices,
+				Normals,
+				UV,
+				TArray<FColor>(),
+				TArray<FProcMeshTangent>(),
+				true);
+
+			ProceduralMesh->SetMaterial(0, MeshMaterial);
+			ProceduralMesh->SetCanEverAffectNavigation(true);
+
+		if (Callback.IsBound())
+		{
+			Callback.Execute();
+		}
+	});
 }
 
 void ATerrainGenerator::CreateTerrain(const TArray<FColor>& HeightTextureColors, const USplineComponent* TrackSpline, const FVector& VertScale)
@@ -47,8 +70,6 @@ void ATerrainGenerator::CreateTerrain(const TArray<FColor>& HeightTextureColors,
 	AlterVerticesHeight(Vertices, TrackSpline, TextureWidth, HeightTextureColors, VertScale);
 	TriangleIndices = CalculateTriangles(TextureWidth);
 
-	TArray<FProcMeshTangent> Tangents1;
-
 	if (UseBuiltInNormalsAndTangents)
 	{
 		TArray<FProcMeshTangent> Tangents;
@@ -58,19 +79,6 @@ void ATerrainGenerator::CreateTerrain(const TArray<FColor>& HeightTextureColors,
 	{
 		Normals = CalculateNormals(Vertices, TriangleIndices, TextureWidth);
 	}
-
-	ProceduralMesh->CreateMeshSection(
-		0,
-		Vertices,
-		TriangleIndices,
-		Normals,
-		UV,
-		TArray<FColor>(),
-		Tangents1,
-		true);
-
-	ProceduralMesh->SetMaterial(0, MeshMaterial);
-
 }
 
 void ATerrainGenerator::AlterVerticesHeight(TArray<FVector>& outVertices, const USplineComponent* TrackSpline, const uint32 Size, const TArray<FColor>& TexColors, const FVector& VertScale) const
