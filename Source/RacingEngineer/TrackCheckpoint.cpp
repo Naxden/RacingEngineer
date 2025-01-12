@@ -62,7 +62,6 @@ void ATrackCheckpoint::OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActo
 {
 	if (OtherActor != nullptr && OtherActor != this)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("%s collided with TrackCheckpoint %d"), *GetActorNameOrLabel(), CheckpointIndex);
 		if (OnPawnOverlappedWTrackCheckpoint.IsBound())
 		{
 			OnPawnOverlappedWTrackCheckpoint.Broadcast(CheckpointIndex);
