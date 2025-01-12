@@ -6,6 +6,7 @@
 #include "UObject/NoExportTypes.h"
 #include "SaveManager.generated.h"
 
+
 class URacingEngineerSaveGame;
 /**
  * 
@@ -24,6 +25,12 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Racing Enginner Saves")
 	static bool LoadSaveSlot(const FString& SaveSlotName, URacingEngineerSaveGame*& OutSaveGame, UTexture2D*& OutMapTexture);
+
+	UFUNCTION(BlueprintCallable, Category = "Racing Enginner Saves")
+	static bool OverrideSaveSlot(URacingEngineerSaveGame* SaveGame);
+
+	UFUNCTION(BlueprintCallable, Category = "Racing Enginner Saves")
+	static bool DeleteSaveSlot(const FString& SaveSlotName);
 
 	UFUNCTION(BlueprintCallable, Category = "Racing Enginner Saves")
 	static TArray<FString> GetSaveSlotNames();
