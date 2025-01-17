@@ -54,7 +54,7 @@ void AMapManager::InitializeMap(bool StartedFromMainMenu)
 		UE_LOG(LogTemp, Warning, TEXT("MapManager elapsed time %fms"), 
 			FPlatformTime::ToMilliseconds(MapManagerTimerStop - MapManagerTimer));
 
-		TSharedRef<FWorkerData> WorkerData = MakeShared<FWorkerData>(TextureColors, SplineComponent, VertSpacingScale);
+		TSharedRef<FWorkerData> WorkerData = MakeShared<FWorkerData>(TextureColors, TextureWidth, TextureHeight, SplineComponent, VertSpacingScale);
 
 		for (const TObjectPtr<AWorkerActor>& Worker : Workers)
 		{
