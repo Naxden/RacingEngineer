@@ -20,6 +20,22 @@ ATerrainGenerator::ATerrainGenerator()
 		ProceduralMesh->SetCanEverAffectNavigation(false);
 	}
 	ProceduralMesh->SetupAttachment(GetRootComponent());
+
+	TerrainWalls.Reserve(4);
+	
+	for (uint8 i = 0; i < 4; i++)
+	{
+		UStaticMeshComponent* Wall = CreateDefaultSubobject<UStaticMeshComponent>(FName(ToString(static_cast<EWall>(i)) + "Wall"));
+
+		if (Wall != nullptr)
+		{
+			TerrainWalls.Emplace(Wall);
+
+			Wall->SetCanEverAffectNavigation(false);
+			Wall->SetupAttachment(GetRootComponent());
+			Wall->SetVisibility(false);
+		}
+	}
 }
 
 // Called when the game starts or when spawned
@@ -39,9 +55,9 @@ void ATerrainGenerator::DoWork(const FWorkerData& Data, const FOnWorkFinished Ca
 {
 	CreateTerrain(Data.HeightTextureColors, Data.TrackSpline, Data.VertScale);
 
-	AsyncTask(ENamedThreads::GameThread, [this, Callback]
+	AsyncTask(ENamedThreads::GameThread, [this, &Data, Callback]
 	{
-			ProceduralMesh->CreateMeshSection(
+		ProceduralMesh->CreateMeshSection(
 				0,
 				Vertices,
 				TriangleIndices,
@@ -51,8 +67,10 @@ void ATerrainGenerator::DoWork(const FWorkerData& Data, const FOnWorkFinished Ca
 				TArray<FProcMeshTangent>(),
 				true);
 
-			ProceduralMesh->SetMaterial(0, MeshMaterial);
-			ProceduralMesh->SetCanEverAffectNavigation(true);
+		ProceduralMesh->SetMaterial(0, MeshMaterial);
+		ProceduralMesh->SetCanEverAffectNavigation(true);
+
+		SetupWalls(Data.TextureWidth, Data.TextureHeight, Data.VertScale);
 
 		if (Callback.IsBound())
 		{
@@ -144,6 +162,82 @@ void ATerrainGenerator::AlterVerticesHeight(TArray<FVector>& outVertices, const 
 	}
 }
 
+void ATerrainGenerator::SetupWalls(const uint32 TextureWidth, const uint32 TextureHeight, const FVector& VertScale)
+{
+	double Width = (TextureWidth - 1) * VertScale.X;
+	double Height = (TextureHeight - 1) * VertScale.Y;
+
+	if (TerrainWallMesh != nullptr)
+	{
+		const FVector MeshSize = TerrainWallMesh->GetBounds().BoxExtent;
+		
+		if (TerrainWalls.Num() == 4)
+		{
+			for (uint8 i = 0; i < 4; i++)
+			{
+				EWall CurrentWall = static_cast<EWall>(i);
+
+				UStaticMeshComponent* Wall = TerrainWalls[i];
+				if (Wall != nullptr)
+				{
+					Wall->SetStaticMesh(TerrainWallMesh);
+					Wall->SetVisibility(false);
+
+					switch (CurrentWall)
+					{
+					case EWall::North:
+						Wall->SetWorldScale3D(FVector(Width / (MeshSize.X * 2), 1, VertScale.Z / MeshSize.Z * 1.2));
+						Wall->SetWorldLocationAndRotation(
+							GetActorLocation() + FVector(0, -Height / 2, -VertScale.Z / 2),
+							GetActorRotation()
+						);
+						break;
+
+					case EWall::East:
+						Wall->SetWorldScale3D(FVector(Height / (MeshSize.X * 2), 1, VertScale.Z / MeshSize.Z * 1.2));
+						Wall->SetWorldLocationAndRotation(
+							GetActorLocation() + FVector(Width / 2, 0, -VertScale.Z / 2),
+							GetActorRotation() + FRotator(0, 90, 0)
+						);
+						break;
+
+					case EWall::South:
+						Wall->SetWorldScale3D(FVector(Width / (MeshSize.X * 2), 1, VertScale.Z / MeshSize.Z * 1.2));
+						Wall->SetWorldLocationAndRotation(
+							GetActorLocation() + FVector(0.0, Height / 2, -VertScale.Z / 2),
+							GetActorRotation() + FRotator(0, 180, 0)
+						);
+						break;
+
+					case EWall::West:
+						Wall->SetWorldScale3D(FVector(Height / (MeshSize.X * 2), 1, VertScale.Z / MeshSize.Z * 1.2));
+						Wall->SetWorldLocationAndRotation(
+							GetActorLocation() + FVector(-Width / 2, 0, -VertScale.Z / 2),
+							GetActorRotation() + FRotator(0, 270, 0)
+						);
+						break;
+					}
+
+					Wall->SetMobility(EComponentMobility::Static);
+				}
+				else 
+				{
+					UE_LOG(LogTemp, Error, TEXT("ATerrainGenerator::SetupWalls %sWall is nullptr"), *ToString(CurrentWall));
+				}
+
+			}
+		}
+		else
+		{
+			UE_LOG(LogTemp, Error, TEXT("ATerrainGenerator::SetupWalls TerrainWalls array is not initialized properly"));
+		}
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("ATerrainGenerator::SetupWalls TerrainWallMesh is nullptr"));
+	}
+}
+
 TArray<FVector> ATerrainGenerator::CalculateVertices(const uint32 Size, const FVector& VertScale) const
 {
 	TArray<FVector> Verts;
@@ -152,7 +246,7 @@ TArray<FVector> ATerrainGenerator::CalculateVertices(const uint32 Size, const FV
 
 	TVector LocalPosition = GetTransform().GetLocation();
 
-	LocalPosition -= FVector(Size / 2 * VertScale.X, Size / 2 * VertScale.Y, 0.0);
+	LocalPosition -= FVector(Size / 2.0 * VertScale.X, Size / 2.0 * VertScale.Y, 0.0);
 
 	for (uint32 y = 0; y < Size; y++)
 	{

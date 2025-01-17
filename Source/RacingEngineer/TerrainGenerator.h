@@ -21,6 +21,32 @@ enum class EColorChannel : uint8
 	Alpha
 };
 
+UENUM()
+enum class EWall : uint8
+{
+	North,
+	East,
+	South,
+	West
+};
+
+FORCEINLINE FString ToString(EWall Wall)
+{
+	switch (Wall)
+	{
+	case EWall::North:
+		return "North";
+	case EWall::East:
+		return "East";
+	case EWall::South:
+		return "South";
+	case EWall::West:
+		return "West";
+	default:
+		return "Unknown";
+	}
+}
+
 UCLASS()
 class RACINGENGINEER_API ATerrainGenerator : public AWorkerActor
 {
@@ -47,6 +73,8 @@ public:
 	UFUNCTION()
 	void AlterVerticesHeight(TArray<FVector>& outVertices, const USplineComponent* TrackSpline, const uint32 Size, const TArray<FColor>& TexColors, const
 	                         FVector& VertScale) const;
+
+	void SetupWalls(const uint32 TextureWidth, const uint32 TextureHeight, const FVector& VertScale);
 
 	virtual void DoWork(const FWorkerData& Data, const FOnWorkFinished Callback) override;
 
@@ -88,4 +116,10 @@ private:
 
 	UPROPERTY(EditAnywhere)
 	float MeshHeightScalar = 0.1f;
+
+	UPROPERTY(VisibleAnywhere)
+	TArray<UStaticMeshComponent*> TerrainWalls;
+
+	UPROPERTY(EditAnywhere)
+	UStaticMesh* TerrainWallMesh;
 };
