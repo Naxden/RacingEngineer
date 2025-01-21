@@ -7,6 +7,7 @@
 #include "GameFramework/Actor.h"
 #include "TerrainGenerator.generated.h"
 
+class UFoliageInstancedStaticMeshComponent;
 class ATrackGenerator;
 class USplineComponent;
 struct FProcMeshTangent;
@@ -72,11 +73,16 @@ public:
 	TArray<FVector> CalculateVertices(const uint32 Size, const FVector& VertScale) const;
 	UFUNCTION()
 	void AlterVerticesHeight(TArray<FVector>& outVertices, const USplineComponent* TrackSpline, const uint32 Size, const TArray<FColor>& TexColors, const
-	                         FVector& VertScale) const;
+	                         FVector& VertScale);
 
 	void SetupWalls(const uint32 TextureWidth, const uint32 TextureHeight, const FVector& VertScale);
 
 	virtual void DoWork(const FWorkerData& Data, const FOnWorkFinished Callback) override;
+
+	void TryAddFoliageLocation(const FVector& LocationToSpawn);
+
+	void SpawnGrassFoliage(TArray<FVector>& Locations);
+	void SpawnActors(TArray<FVector>& Locations, const TSubclassOf<AActor>& ActorClass);
 
 protected:
 	// Called when the game starts or when spawned
@@ -122,4 +128,23 @@ private:
 
 	UPROPERTY(EditAnywhere)
 	UStaticMesh* TerrainWallMesh;
+
+	UPROPERTY(EditAnywhere)
+	UFoliageInstancedStaticMeshComponent* GrassFoliageComponent;
+	UPROPERTY(EditAnywhere)
+	float GrassFoliageProbability = 0.0f;
+	TArray<FVector> GrassFoliageLocations;
+
+	UPROPERTY(EditAnywhere)
+	TSubclassOf<AActor> RockBlueprintClass;
+	UPROPERTY(EditAnywhere)
+	float RocksProbability = 0.0f;
+	TArray<FVector> RocksLocations;
+
+	UPROPERTY(EditAnywhere)
+	TSubclassOf<AActor> TreeBlueprintClass;
+	UPROPERTY(EditAnywhere)
+	float TreesProbability = 0.0f;
+	TArray<FVector> TreesLocations;
+
 };

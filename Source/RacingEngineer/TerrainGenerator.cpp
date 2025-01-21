@@ -6,6 +6,7 @@
 #include "KismetProceduralMeshLibrary.h"
 #include "TrackGenerator.h"
 #include "Components/SplineComponent.h"
+#include "Runtime/Foliage/Public/FoliageInstancedStaticMeshComponent.h"
 
 using UE::Math::TVector;
 // Sets default values
@@ -36,6 +37,14 @@ ATerrainGenerator::ATerrainGenerator()
 			Wall->SetVisibility(false);
 		}
 	}
+
+	GrassFoliageComponent = CreateDefaultSubobject<UFoliageInstancedStaticMeshComponent>(TEXT("GrassFoliageComponent"));
+	if (GrassFoliageComponent != nullptr)
+	{
+		GrassFoliageComponent->SetupAttachment(GetRootComponent());
+		GrassFoliageComponent->SetCanEverAffectNavigation(false);
+		GrassFoliageComponent->SetVisibility(true);
+	}
 }
 
 // Called when the game starts or when spawned
@@ -53,9 +62,19 @@ void ATerrainGenerator::Tick(float DeltaTime)
 
 void ATerrainGenerator::DoWork(const FWorkerData& Data, const FOnWorkFinished Callback)
 {
+	const uint64 VerticesNum = Data.TextureWidth * Data.TextureHeight;
+	const float VertScaleXYNum = Data.VertScale.X * Data.VertScale.Y;
+	GrassFoliageProbability *= VertScaleXYNum / VerticesNum;
+	RocksProbability *= VertScaleXYNum / VerticesNum;
+	TreesProbability *= VertScaleXYNum / VerticesNum;
+
+	GrassFoliageLocations.Reserve(VerticesNum * GrassFoliageProbability);
+	RocksLocations.Reserve(VerticesNum * RocksProbability);
+	TreesLocations.Reserve(VerticesNum * TreesProbability);
+
 	CreateTerrain(Data.HeightTextureColors, Data.TrackSpline, Data.VertScale);
 
-	AsyncTask(ENamedThreads::GameThread, [this, &Data, Callback]
+	AsyncTask(ENamedThreads::GameThread, [this, Data, Callback]
 	{
 		ProceduralMesh->CreateMeshSection(
 				0,
@@ -72,12 +91,18 @@ void ATerrainGenerator::DoWork(const FWorkerData& Data, const FOnWorkFinished Ca
 
 		SetupWalls(Data.TextureWidth, Data.TextureHeight, Data.VertScale);
 
+		SpawnGrassFoliage(GrassFoliageLocations);
+
+		SpawnActors(RocksLocations, RockBlueprintClass);
+		SpawnActors(TreesLocations, TreeBlueprintClass);
+
 		if (Callback.IsBound())
 		{
 			Callback.Execute();
 		}
 	});
 }
+
 
 void ATerrainGenerator::CreateTerrain(const TArray<FColor>& HeightTextureColors, const USplineComponent* TrackSpline, const FVector& VertScale)
 {
@@ -99,7 +124,7 @@ void ATerrainGenerator::CreateTerrain(const TArray<FColor>& HeightTextureColors,
 	}
 }
 
-void ATerrainGenerator::AlterVerticesHeight(TArray<FVector>& outVertices, const USplineComponent* TrackSpline, const uint32 Size, const TArray<FColor>& TexColors, const FVector& VertScale) const
+void ATerrainGenerator::AlterVerticesHeight(TArray<FVector>& outVertices, const USplineComponent* TrackSpline, const uint32 Size, const TArray<FColor>& TexColors, const FVector& VertScale)
 {
 	for (uint32 y = 0; y < Size; y++)
 	{
@@ -157,8 +182,28 @@ void ATerrainGenerator::AlterVerticesHeight(TArray<FVector>& outVertices, const 
 					const float Alpha = (MeshWidth + MeshOffset) / Distance - 1.0f;
 					CurrentVert.Z = FMath::Lerp(CurrentVert.Z, ClosestSplinePos.Z - MeshHeight, Alpha);
 				}
+				else
+				{
+					TryAddFoliageLocation(CurrentVert);
+				}
 			}
 		}
+	}
+}
+
+void ATerrainGenerator::TryAddFoliageLocation(const FVector& LocationToSpawn)
+{
+	if (FMath::FRand() < GrassFoliageProbability && GrassFoliageLocations.Num() < GrassFoliageLocations.Max())
+	{
+		GrassFoliageLocations.Emplace(LocationToSpawn);
+	}
+	else if (FMath::FRand() < RocksProbability && RocksLocations.Num() < RocksLocations.Max())
+	{
+		RocksLocations.Emplace(LocationToSpawn);
+	}
+	else if (FMath::FRand() < TreesProbability && TreesLocations.Num() < TreesLocations.Max())
+	{
+		TreesLocations.Emplace(LocationToSpawn);
 	}
 }
 
@@ -218,13 +263,12 @@ void ATerrainGenerator::SetupWalls(const uint32 TextureWidth, const uint32 Textu
 						break;
 					}
 
-					Wall->SetMobility(EComponentMobility::Static);
+					Wall->SetMobility(EComponentMobility::Stationary);
 				}
 				else 
 				{
 					UE_LOG(LogTemp, Error, TEXT("ATerrainGenerator::SetupWalls %sWall is nullptr"), *ToString(CurrentWall));
 				}
-
 			}
 		}
 		else
@@ -235,6 +279,48 @@ void ATerrainGenerator::SetupWalls(const uint32 TextureWidth, const uint32 Textu
 	else
 	{
 		UE_LOG(LogTemp, Error, TEXT("ATerrainGenerator::SetupWalls TerrainWallMesh is nullptr"));
+	}
+}
+
+void ATerrainGenerator::SpawnGrassFoliage(TArray<FVector>& Locations)
+{
+	if (GrassFoliageComponent != nullptr)
+	{
+		for (const FVector& Location : Locations)
+		{
+			float RandomScale = FMath::RandRange(0.5, 3.0);
+			float RandomYaw = FMath::RandRange(0, 360);
+			FTransform GrassTransform(Location);
+
+			GrassTransform.SetScale3D(FVector(RandomScale));
+			GrassTransform.SetRotation(FRotator(0, RandomYaw, 0).Quaternion());
+
+			GrassFoliageComponent->AddInstance(GrassTransform, true);
+		}
+
+		Locations.Empty();
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("ATerrainGenerator::SpawnFoliage GrassFoliageComponent is nullptr"));
+	}
+}
+
+void ATerrainGenerator::SpawnActors(TArray<FVector>& Locations, const TSubclassOf<AActor>& ActorClass)
+{
+	if (ActorClass != nullptr)
+	{
+		for (const FVector& Location : Locations)
+		{
+			float RandomYaw = FMath::RandRange(0, 360);
+
+			GetWorld()->SpawnActor<AActor>(ActorClass, Location, FRotator(0, RandomYaw, 0));
+		}
+		Locations.Empty();
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("ATerrainGenerator::SpawnActors ActorClass is nullptr"));
 	}
 }
 
