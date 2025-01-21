@@ -9,42 +9,57 @@
 
 URacingEngineerSaveGame* USaveManager::CreateSaveSlot(const FString& SaveSlotName, const FString& MapTexturePath)
 {
-	URacingEngineerSaveGame* SaveGame = Cast<URacingEngineerSaveGame>(UGameplayStatics::CreateSaveGameObject(URacingEngineerSaveGame::StaticClass()));
-
-	if (SaveGame != nullptr)	
+	if (!SaveSlotName.IsEmpty())
 	{
-		SaveGame->SaveSlotName = SaveSlotName;
-		
-		const FString SaveSlotsDirPath = FPaths::Combine(FPaths::ProjectSavedDir(), SaveSlotsDirName);
-		const FString MapImageDestinationPath = FPaths::Combine(SaveSlotsDirPath, SaveSlotName + FPaths::GetExtension(MapTexturePath, true));
-
-		SaveGame->MapImagePath = MapImageDestinationPath;
-		if (UGameplayStatics::SaveGameToSlot(SaveGame, SaveSlotName, 0))
+		if (!MapTexturePath.IsEmpty())
 		{
-			UE_LOG(LogTemp, Log, TEXT("USaveManager::CreateSaveSlot Save game object created successfully"));
+			URacingEngineerSaveGame* SaveGame = Cast<URacingEngineerSaveGame>(UGameplayStatics::CreateSaveGameObject(URacingEngineerSaveGame::StaticClass()));
+
+			if (SaveGame != nullptr)
+			{
+				SaveGame->SaveSlotName = SaveSlotName;
+
+				const FString SaveSlotsDirPath = FPaths::Combine(FPaths::ProjectSavedDir(), SaveSlotsDirName);
+				const FString MapImageDestinationPath = FPaths::Combine(SaveSlotsDirPath, SaveSlotName + FPaths::GetExtension(MapTexturePath, true));
+
+				SaveGame->MapImagePath = MapImageDestinationPath;
+				if (UGameplayStatics::SaveGameToSlot(SaveGame, SaveSlotName, 0))
+				{
+					UE_LOG(LogTemp, Log, TEXT("USaveManager::CreateSaveSlot Save game object created successfully"));
+				}
+				else
+				{
+					UE_LOG(LogTemp, Error, TEXT("USaveManager::CreateSaveSlot Failed to save game object to slot"));
+					return nullptr;
+				}
+
+				if (FPlatformFileManager::Get().GetPlatformFile().CopyFile(*MapImageDestinationPath, *MapTexturePath))
+				{
+					UE_LOG(LogTemp, Log, TEXT("USaveManager::CreateSaveSlot File copied successfully to %s"), *MapImageDestinationPath);
+					return SaveGame;
+				}
+				else
+				{
+					UE_LOG(LogTemp, Error, TEXT("USaveManager::CreateSaveSlot Failed to copy file to %s"), *MapImageDestinationPath);
+					return nullptr;
+				}
+			}
+			else
+			{
+				UE_LOG(LogTemp, Error, TEXT("USaveManager::CreateSaveSlot Failed to create save game object"));
+			}
 		}
 		else
 		{
-			UE_LOG(LogTemp, Error, TEXT("USaveManager::CreateSaveSlot Failed to save game object to slot"));
-			return nullptr;
-		}
-
-		if (FPlatformFileManager::Get().GetPlatformFile().CopyFile(*MapImageDestinationPath, *MapTexturePath))
-		{
-			UE_LOG(LogTemp, Log, TEXT("USaveManager::CreateSaveSlot File copied successfully to %s"), *MapImageDestinationPath);
-			return SaveGame;
-		}
-		else
-		{
-			UE_LOG(LogTemp, Error, TEXT("USaveManager::CreateSaveSlot Failed to copy file to %s"), *MapImageDestinationPath);
-			return nullptr;
+			UE_LOG(LogTemp, Error, TEXT("USaveManager::CreateSaveSlot MapTexturePath is empty"));
 		}
 	}
 	else
 	{
-		UE_LOG(LogTemp, Error, TEXT("USaveManager::CreateSaveSlot Failed to create save game object"));
-		return nullptr;
+		UE_LOG(LogTemp, Error, TEXT("USaveManager::CreateSaveSlot SaveSlotName is empty"));
 	}
+
+	return nullptr;
 }
 
 bool USaveManager::LoadSaveSlot(const FString& SaveSlotName, URacingEngineerSaveGame*& OutSaveGame, UTexture2D*& OutMapTexture)
