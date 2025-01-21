@@ -89,6 +89,7 @@ public:
 		const uint32 Height, const uint32 Width, const FVector& VertScale);
 
 	static uint8 CalculateNodeToSkip(const uint32 TextureHeight, const uint32 TextureWidth);
+	static FVector CalculateVertScale(const uint32 TextureHeight, const uint32 TextureWidth);
 
 private:
 	void WorkerFinished();

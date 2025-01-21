@@ -43,11 +43,11 @@ void AMapManager::InitializeMap(bool StartedFromMainMenu)
 		if (StartedFromMainMenu)
 		{
 			NodeToSkip = CalculateNodeToSkip(TextureHeight, TextureWidth);
+			VertSpacingScale = CalculateVertScale(TextureHeight, TextureWidth);
 		}
 
 		TrackNodes = CreateTrack(TextureColors, TextureHeight, TextureWidth, NodeToSkip);
 		CreateTrackSpline(SplineComponent, TrackNodes, TextureColors, TextureHeight, TextureWidth, VertSpacingScale);
-		SplineComponent->SetClosedLoop(true);
 
 		const uint32 MapManagerTimerStop = FPlatformTime::Cycles();
 
@@ -369,6 +369,8 @@ void AMapManager::CreateTrackSpline(USplineComponent* Spline, const TArray<FVect
 
 			Spline->AddSplinePoint(SplinePos, ESplineCoordinateSpace::Local);
 		}
+
+		Spline->SetClosedLoop(true);
 	}
 	else
 	{
@@ -395,6 +397,24 @@ uint8 AMapManager::CalculateNodeToSkip(const uint32 TextureHeight, const uint32 
 	else
 	{
 		return 0;
+	}
+}
+
+FVector AMapManager::CalculateVertScale(const uint32 TextureHeight, const uint32 TextureWidth)
+{
+	const uint32 TextureSize = (TextureHeight + TextureWidth) / 2;
+	
+	if (TextureSize >= 512)
+	{
+		return FVector(125.0, 125.0, 2400.0);
+	}
+	else if (TextureSize >= 256)
+	{
+		return FVector(250.0, 250.0, 2400.0);
+	}
+	else 
+	{
+		return FVector(500.0, 500.0, 2400.0);
 	}
 }
 
