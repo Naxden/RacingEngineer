@@ -11,5 +11,24 @@ public class RacingEngineer : ModuleRules
 		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "ChaosVehicles", "PhysicsCore", "Landscape", "SlateCore", "Foliage" });
 
 		PrivateDependencyModuleNames.AddRange( new string[] { "ProceduralMeshComponent", "RenderCore", "RHI" });
+
+		if (Target.Platform == UnrealTargetPlatform.Win64)
+		{
+			{
+				PublicAdditionalLibraries.AddRange(new string[] {
+					"shlwapi.lib",
+					"propsys.lib",
+					"comctl32.lib"
+				});
+
+				PublicDelayLoadDLLs.AddRange(new string[] {
+					"shlwapi.dll",
+					"propsys.dll",
+					"comctl32.dll"
+				});
+
+				PublicDefinitions.Add("STRICT_TYPED_ITEMIDS=1");
+			}
+        }
 	}
 }

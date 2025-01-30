@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "MapFilePicker.generated.h"
 
+#undef LoadImage
 /**
  * 
  */
