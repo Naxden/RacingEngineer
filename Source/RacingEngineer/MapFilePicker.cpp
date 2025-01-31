@@ -15,6 +15,9 @@
 #include <shtypes.h>      // for COMDLG_FILTERSPEC
 #include <new>
 
+#undef LoadImage
+#undef CopyFile
+#undef DeleteFile
 
 const COMDLG_FILTERSPEC c_rgSaveTypes[] =
 {
@@ -332,7 +335,6 @@ FString UMapFilePicker::OpenFileDialog()
 	return "";
 }
 
-#undef LoadImage
 
 UTexture2D* UMapFilePicker::LoadFileToTexture(const FString& FilePath)
 {
