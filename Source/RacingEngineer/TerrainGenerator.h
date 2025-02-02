@@ -56,24 +56,23 @@ class RACINGENGINEER_API ATerrainGenerator : public AWorkerActor
 public:
 
 	UFUNCTION()
-	static TArray<int32> CalculateTriangles(uint32 Size);
+	static TArray<int32> CalculateTriangles(const uint32 Width, const uint32 Height);
 
 	UFUNCTION()
 	static FVector GetNormal(const FVector& V0, const FVector& V1, const FVector& V2);
 
 	UFUNCTION()
-	static TArray<FVector> CalculateNormals(const TArray<FVector>& Verts, const TArray<int32> Triangles, const uint32 Size);
+	static TArray<FVector> CalculateNormals(const TArray<FVector>& Verts, const TArray<int32>& Triangles, const uint32 Width, const uint32 Height);
 
 	UFUNCTION()
-	static TArray<FVector2D> CalculateUVs(const uint32 Size);
+	static TArray<FVector2D> CalculateUVs(const uint32 Width, const uint32 Height);
 
 	ATerrainGenerator();
 
 	UFUNCTION()
-	TArray<FVector> CalculateVertices(const uint32 Size, const FVector& VertScale) const;
+	TArray<FVector> CalculateVertices(const uint32 Width, const uint32 Height, const FVector& VertScale) const;
 	UFUNCTION()
-	void AlterVerticesHeight(TArray<FVector>& outVertices, const USplineComponent* TrackSpline, const uint32 Size, const TArray<FColor>& TexColors, const
-	                         FVector& VertScale);
+	void AlterVerticesHeight(TArray<FVector>& outVertices, const FWorkerData& Data);
 
 	void SetupWalls(const uint32 TextureWidth, const uint32 TextureHeight, const FVector& VertScale);
 
@@ -95,7 +94,7 @@ public:
 private:
 
 	UFUNCTION()
-	void CreateTerrain(const TArray<FColor>& HeightTextureColors, const USplineComponent* TrackSpline, const FVector& VertScale);
+	void CreateTerrain(const FWorkerData& Data);
 
 	UPROPERTY(VisibleAnywhere)
 	UProceduralMeshComponent* ProceduralMesh;

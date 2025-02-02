@@ -14,14 +14,15 @@ struct FWorkerData
 {
 	GENERATED_BODY()
 
-	TArray<FColor> HeightTextureColors;
+	TArray<uint8> HeightData;
 	uint32 TextureWidth;
 	uint32 TextureHeight;
+	UPROPERTY()
 	const USplineComponent* TrackSpline;
 	FVector VertScale;
 
 	FWorkerData()
-		: HeightTextureColors()
+		: HeightData()
 		, TextureWidth(0)
 	    , TextureHeight(0)
 		, TrackSpline(nullptr)
@@ -29,9 +30,9 @@ struct FWorkerData
 	{
 	}
 
-	FWorkerData(const TArray<FColor>& InHeightTextureColors, const uint32 InTextureWidth, const uint32 InTextureHeight, 
+	FWorkerData(const TArray<uint8>& InHeightData, const uint32 InTextureWidth, const uint32 InTextureHeight, 
 		const USplineComponent* InTrackSpline, const FVector& InVertScale)
-		: HeightTextureColors(InHeightTextureColors)
+		: HeightData(InHeightData)
 		, TextureWidth(InTextureWidth)
 		, TextureHeight(InTextureHeight)
 		, TrackSpline(InTrackSpline)

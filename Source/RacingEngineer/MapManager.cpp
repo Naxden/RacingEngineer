@@ -8,6 +8,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Async/Async.h"
 #include "WorkerActor.h"
+#include "FastNoiseWrapper.h"
 
 // Sets default values
 AMapManager::AMapManager()
@@ -36,6 +37,8 @@ void AMapManager::InitializeMap(bool StartedFromMainMenu)
 	{
 		const uint32 MapManagerTimer = FPlatformTime::Cycles();
 
+		TextureHeight = HeightMapTexture->GetSizeX();
+		TextureWidth = HeightMapTexture->GetSizeY();
 		TextureColors = GetColorsFromTexture(HeightMapTexture);
 
 		SplineComponent->ClearSplinePoints();
@@ -46,15 +49,18 @@ void AMapManager::InitializeMap(bool StartedFromMainMenu)
 			VertSpacingScale = CalculateVertScale(TextureHeight, TextureWidth);
 		}
 
+		const int32 Seed = FMath::RandRange(-1000, 1000);
+		TArray<uint8> GeneratedHeights = GenerateHeightFromNoise(TextureHeight, TextureWidth, NoiseFrequency, Seed);
+
 		TrackNodes = CreateTrack(TextureColors, TextureHeight, TextureWidth, NodeToSkip);
-		CreateTrackSpline(SplineComponent, TrackNodes, TextureColors, TextureHeight, TextureWidth, VertSpacingScale);
+		CreateTrackSpline(SplineComponent, TrackNodes, GeneratedHeights, TextureHeight, TextureWidth, VertSpacingScale);
 
 		const uint32 MapManagerTimerStop = FPlatformTime::Cycles();
 
 		UE_LOG(LogTemp, Warning, TEXT("MapManager elapsed time %fms"), 
 			FPlatformTime::ToMilliseconds(MapManagerTimerStop - MapManagerTimer));
 
-		TSharedRef<FWorkerData> WorkerData = MakeShared<FWorkerData>(TextureColors, TextureWidth, TextureHeight, SplineComponent, VertSpacingScale);
+		TSharedRef<FWorkerData> WorkerData = MakeShared<FWorkerData>(GeneratedHeights, TextureWidth, TextureHeight, SplineComponent, VertSpacingScale);
 
 		for (const TObjectPtr<AWorkerActor>& Worker : Workers)
 		{
@@ -66,6 +72,8 @@ void AMapManager::InitializeMap(bool StartedFromMainMenu)
 				});
 			}
 		}
+
+		//TODO finish properly if no workers
 	}
 	else
 	{
@@ -152,9 +160,6 @@ TArray<FColor> AMapManager::GetColorsFromTexture(UTexture2D* Texture)
 	{
 		FRenderCommandFence RenderFence;
 
-		TextureHeight = Texture->GetSizeX();
-		TextureWidth = Texture->GetSizeY();
-
 		ColorData.SetNumUninitialized(TextureWidth * TextureHeight);
 
 		ENQUEUE_RENDER_COMMAND(ReadColorsFromTexture)(
@@ -189,6 +194,32 @@ TArray<FColor> AMapManager::GetColorsFromTexture(UTexture2D* Texture)
 	}
 
 	return ColorData;
+}
+
+TArray<uint8> AMapManager::GenerateHeightFromNoise(const uint32 TextureHeight, const uint32 TextureWidth, const float Frequency, const int32 Seed)
+{
+	TArray<uint8> Heights;
+
+	Heights.Reserve(TextureWidth * TextureHeight);
+
+	UFastNoiseWrapper* FastNoiseWrapper = NewObject<UFastNoiseWrapper>();
+
+	if (FastNoiseWrapper != nullptr)
+	{
+		FastNoiseWrapper->SetupFastNoise(EFastNoise_NoiseType::Perlin, Seed, Frequency, EFastNoise_Interp::Quintic);
+
+		for (uint32 y = 0; y < TextureWidth; y++)
+		{
+			for (uint32 x = 0; x < TextureHeight; x++)
+			{
+				const float NoiseValue = FastNoiseWrapper->GetNoise2D(x, y);
+				const uint8 NoiseValueByte = FMath::Clamp(FMath::RoundToInt(NoiseValue * 255.0f), 0, 255);
+				Heights.Emplace(NoiseValueByte);
+			}
+		}
+	}
+	
+	return Heights;
 }
 
 void AMapManager::GetColors(TArray<FColor>& ColorData, void* SrcData, uint32 TextureWidth, uint32 TextureHeight)
@@ -298,7 +329,7 @@ FTrackNode AMapManager::FindFirstTrackNode(const TArray<FColor>& HeightTextureCo
 		{
 			FColor pixelColor = HeightTextureColors[y * TextureWidth + x];
 
-			if (pixelColor.A < 255)
+			if (pixelColor.R < 127)
 			{
 				return FTrackNode(FVector2D(x, y), EDirection::Left);
 			}
@@ -323,7 +354,7 @@ FTrackNode AMapManager::FindNextTrackNode(const TArray<FColor>& HeightTextureCol
 		{
 			const FColor PixelColor = HeightTextureColors[NeighbourPos.Y * TextureWidth + NeighbourPos.X];
 
-			if (PixelColor.A < 255)
+			if (PixelColor.R < 127)
 			{
 				bFound = true;
 				break;
@@ -353,13 +384,13 @@ bool AMapManager::ShouldFindAnotherTrackNode(const TArray<FVector2D>& TrackNodes
 	return FVector2D::DistSquared(FirstNode, LastNode) > 2;
 }
 
-void AMapManager::CreateTrackSpline(USplineComponent* Spline, const TArray<FVector2D>& Nodes, const TArray<FColor>& HeightTextureColors, const uint32 Height, const uint32 Width, const FVector& VertScale)
+void AMapManager::CreateTrackSpline(USplineComponent* Spline, const TArray<FVector2D>& Nodes, const TArray<uint8>& Heights, const uint32 Height, const uint32 Width, const FVector& VertScale)
 {
 	if (Spline != nullptr)
 	{
 		for (const FVector2D& TrackNode : Nodes)
 		{
-			const uint8 HeightValue = HeightTextureColors[TrackNode.Y * Width + TrackNode.X].R;
+			const uint8 HeightValue = Heights[TrackNode.Y * Width + TrackNode.X];
 			FVector SplinePos =
 			{
 				(TrackNode.X - Width / 2) * VertScale.X,

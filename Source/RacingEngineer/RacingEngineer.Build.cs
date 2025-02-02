@@ -7,12 +7,30 @@ public class RacingEngineer : ModuleRules
 	public RacingEngineer(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
+		
+        PublicDependencyModuleNames.AddRange(new string[] { 
+	        "Core", 
+	        "CoreUObject", 
+	        "Engine", 
+	        "InputCore", 
+	        "EnhancedInput", 
+			"ChaosVehicles", 
+			"PhysicsCore", 
+			"Landscape", 
+			"SlateCore", 
+			"Foliage", 
+			"FastNoiseGenerator",
+			"FastNoise"
+        });
 
-		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "ChaosVehicles", "PhysicsCore", "Landscape", "SlateCore", "Foliage" });
-
-		PrivateDependencyModuleNames.AddRange( new string[] { "ProceduralMeshComponent", "RenderCore", "RHI" });
-
-		if (Target.Platform == UnrealTargetPlatform.Win64)
+		PrivateDependencyModuleNames.AddRange( new string[]
+		{
+			"ProceduralMeshComponent", 
+			"RenderCore", 
+			"RHI"
+		});
+		
+        if (Target.Platform == UnrealTargetPlatform.Win64)
 		{
 			{
 				PublicAdditionalLibraries.AddRange(new string[] {

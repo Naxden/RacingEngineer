@@ -72,7 +72,7 @@ void ATerrainGenerator::DoWork(const FWorkerData& Data, const FOnWorkFinished Ca
 	RocksLocations.Reserve(VerticesNum * RocksProbability);
 	TreesLocations.Reserve(VerticesNum * TreesProbability);
 
-	CreateTerrain(Data.HeightTextureColors, Data.TrackSpline, Data.VertScale);
+	CreateTerrain(Data);
 
 	AsyncTask(ENamedThreads::GameThread, [this, Data, Callback]
 	{
@@ -104,14 +104,12 @@ void ATerrainGenerator::DoWork(const FWorkerData& Data, const FOnWorkFinished Ca
 }
 
 
-void ATerrainGenerator::CreateTerrain(const TArray<FColor>& HeightTextureColors, const USplineComponent* TrackSpline, const FVector& VertScale)
+void ATerrainGenerator::CreateTerrain(const FWorkerData& Data)
 {
-	const uint32 TextureWidth = sqrt(HeightTextureColors.Num());
-
-	UV = CalculateUVs(TextureWidth);
-	Vertices = CalculateVertices(TextureWidth, VertScale);
-	AlterVerticesHeight(Vertices, TrackSpline, TextureWidth, HeightTextureColors, VertScale);
-	TriangleIndices = CalculateTriangles(TextureWidth);
+	UV = CalculateUVs(Data.TextureWidth, Data.TextureHeight);
+	Vertices = CalculateVertices(Data.TextureWidth, Data.TextureHeight, Data.VertScale);
+	AlterVerticesHeight(Vertices, Data);
+	TriangleIndices = CalculateTriangles(Data.TextureWidth, Data.TextureHeight);
 
 	if (UseBuiltInNormalsAndTangents)
 	{
@@ -120,40 +118,22 @@ void ATerrainGenerator::CreateTerrain(const TArray<FColor>& HeightTextureColors,
 	}
 	else
 	{
-		Normals = CalculateNormals(Vertices, TriangleIndices, TextureWidth);
+		Normals = CalculateNormals(Vertices, TriangleIndices, Data.TextureWidth, Data.TextureHeight);
 	}
 }
 
-void ATerrainGenerator::AlterVerticesHeight(TArray<FVector>& outVertices, const USplineComponent* TrackSpline, const uint32 Size, const TArray<FColor>& TexColors, const FVector& VertScale)
+void ATerrainGenerator::AlterVerticesHeight(TArray<FVector>& outVertices, const FWorkerData& Data)
 {
-	for (uint32 y = 0; y < Size; y++)
+	for (uint32 y = 0; y < Data.TextureHeight; y++)
 	{
-		for (uint32 x = 0; x < Size; x++)
+		for (uint32 x = 0; x < Data.TextureWidth; x++)
 		{
 			constexpr uint8 Offset = 127;
-			FVector& CurrentVert = outVertices[y * Size + x];
-			const FColor& CurrentColor = TexColors[y * Size + x];
+			FVector& CurrentVert = outVertices[y * Data.TextureWidth + x];
 
-			uint8 ColorValue = 0;
-			switch (TextureChannel)
-			{
-			case EColorChannel::Red:
-				ColorValue = CurrentColor.R;
-				break;
-			case EColorChannel::Green:
-				ColorValue = CurrentColor.G;
-				break;
-			case EColorChannel::Blue:
-				ColorValue = CurrentColor.B;
-				break;
-			case EColorChannel::Alpha:
-				ColorValue = CurrentColor.A;
-				break;
-			default:
-				break;
-			}
-;
-			CurrentVert.Z += (ColorValue - Offset) / 255.0 * VertScale.Z;
+			const uint8 HeightValue = Data.HeightData[y * Data.TextureWidth + x];
+			;
+			CurrentVert.Z += (HeightValue - Offset) / 255.0 * Data.VertScale.Z;
 			
 			float MeshWidth = 0.0f;
 			float MeshHeight = 0.0f;
@@ -165,9 +145,9 @@ void ATerrainGenerator::AlterVerticesHeight(TArray<FVector>& outVertices, const 
 				MeshHeight = MeshSize.Z * MeshHeightScalar;
 			}
 
-			if (TrackSpline != nullptr)
+			if (Data.TrackSpline != nullptr)
 			{
-				const FVector ClosestSplinePos = TrackSpline->FindLocationClosestToWorldLocation(CurrentVert, ESplineCoordinateSpace::World);
+				const FVector ClosestSplinePos = Data.TrackSpline->FindLocationClosestToWorldLocation(CurrentVert, ESplineCoordinateSpace::World);
 				const float Distance = FVector::Dist(CurrentVert, ClosestSplinePos);
 				const float MeshOffset = MeshWidth * 0.35f;
 
@@ -324,19 +304,19 @@ void ATerrainGenerator::SpawnActors(TArray<FVector>& Locations, const TSubclassO
 	}
 }
 
-TArray<FVector> ATerrainGenerator::CalculateVertices(const uint32 Size, const FVector& VertScale) const
+TArray<FVector> ATerrainGenerator::CalculateVertices(const uint32 Width, const uint32 Height, const FVector& VertScale) const
 {
 	TArray<FVector> Verts;
-	const uint64 VertCount = Size * Size;
+	const uint64 VertCount = Width * Height;
 	Verts.Reserve(VertCount);
 
 	TVector LocalPosition = GetTransform().GetLocation();
 
-	LocalPosition -= FVector(Size / 2.0 * VertScale.X, Size / 2.0 * VertScale.Y, 0.0);
+	LocalPosition -= FVector(Width / 2.0 * VertScale.X, Height/ 2.0 * VertScale.Y, 0.0);
 
-	for (uint32 y = 0; y < Size; y++)
+	for (uint32 y = 0; y < Height; y++)
 	{
-		for (uint32 x = 0; x < Size; x++)
+		for (uint32 x = 0; x < Width; x++)
 		{
 			Verts.Emplace
 			(
@@ -350,37 +330,37 @@ TArray<FVector> ATerrainGenerator::CalculateVertices(const uint32 Size, const FV
 	return Verts;
 }
 
-TArray<FVector2D> ATerrainGenerator::CalculateUVs(const uint32 Size)
+TArray<FVector2D> ATerrainGenerator::CalculateUVs(const uint32 Width, const uint32 Height)
 {
 	TArray<FVector2D> UVs;
-	UVs.Reserve(Size * Size);
-	for (uint32 y = 0; y < Size; y++)
+	UVs.Reserve(Width * Height);
+	for (uint32 y = 0; y < Height; y++)
 	{
-		for (uint32 x = 0; x < Size; x++)
+		for (uint32 x = 0; x < Width; x++)
 		{
-			UVs.Emplace(x / (Size - 1.0), y / (Size - 1.0));
+			UVs.Emplace(x / (Width - 1.0), y / (Height - 1.0));
 		}
 	}
 	return UVs;
 }
 
-TArray<int32> ATerrainGenerator::CalculateTriangles(const uint32 Size)
+TArray<int32> ATerrainGenerator::CalculateTriangles(const uint32 Width, const uint32 Height)
 {
-	const uint32 TriangleNodesCount = (Size - 1) * (Size - 1) * 2 * 3;
+	const uint32 TriangleNodesCount = (Width - 1) * (Height - 1) * 2 * 3;
 	TArray<int32> TriangleNodes;
 	TriangleNodes.Reserve(TriangleNodesCount);
 
-	for (uint32 y = 0; y < Size - 1; y++)
+	for (uint32 y = 0; y < Height - 1; y++)
 	{
-		for (uint32 x = 0; x < Size - 1; x++)
+		for (uint32 x = 0; x < Width - 1; x++)
 		{
-			TriangleNodes.Emplace(x + y * Size);
-			TriangleNodes.Emplace(x + (y + 1) * Size);
-			TriangleNodes.Emplace(x + 1 + y * Size);
+			TriangleNodes.Emplace(x + y * Width);
+			TriangleNodes.Emplace(x + (y + 1) * Width);
+			TriangleNodes.Emplace(x + 1 + y * Width);
 
-			TriangleNodes.Emplace(x + 1 + y * Size);
-			TriangleNodes.Emplace(x + (y + 1) * Size);
-			TriangleNodes.Emplace(x + 1 + (y + 1) * Size);
+			TriangleNodes.Emplace(x + 1 + y * Width);
+			TriangleNodes.Emplace(x + (y + 1) * Width);
+			TriangleNodes.Emplace(x + 1 + (y + 1) * Width);
 		}
 	}
 
@@ -407,10 +387,10 @@ FVector ATerrainGenerator::GetNormal(const FVector& V0, const FVector& V1, const
 	return crossVector;
 }
 
-TArray<FVector> ATerrainGenerator::CalculateNormals(const TArray<FVector>& Verts, const TArray<int32> Triangles, const uint32 Size)
+TArray<FVector> ATerrainGenerator::CalculateNormals(const TArray<FVector>& Verts, const TArray<int32>& Triangles, const uint32 Width, const uint32 Height)
 {
-	const uint32 NormalCount = Size * Size;
-	const uint32 TriangleIndicesCount = (Size - 1) * (Size - 1) * 2 * 3;
+	const uint32 NormalCount = Width * Height;
+	const uint32 TriangleIndicesCount = (Width - 1) * (Height - 1) * 2 * 3;
 
 	check(Verts.Num() == NormalCount)
 	check(Triangles.Num() == TriangleIndicesCount)

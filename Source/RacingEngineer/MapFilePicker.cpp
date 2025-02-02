@@ -18,6 +18,8 @@
 #undef LoadImage
 #undef CopyFile
 #undef DeleteFile
+#undef min
+#undef max
 
 const COMDLG_FILTERSPEC c_rgSaveTypes[] =
 {

@@ -74,6 +74,7 @@ public:
 	void SetHeightMapTexture(UTexture2D* Texture);
 
 	TArray<FColor> GetColorsFromTexture(UTexture2D* Texture);
+	static TArray<uint8> GenerateHeightFromNoise(const uint32 TextureHeight, const uint32 TextureWidth, const float Frequency, const int32 Seed = 42);
 
 	static void GetColors(TArray<FColor>& ColorData, void* SrcData, uint32 TextureWidth, uint32 TextureHeight);
 
@@ -85,7 +86,7 @@ public:
 	static TArray<FVector2D> CreateTrack(const TArray<FColor>& HeightTextureColors, const uint32 TextureHeight,
 		const uint32 TextureWidth, const uint8 SkipNodesCount);
 
-	static void CreateTrackSpline(USplineComponent* Spline, const TArray<FVector2D>& Nodes, const TArray<FColor>& HeightTextureColors,
+	static void CreateTrackSpline(USplineComponent* Spline, const TArray<FVector2D>& Nodes, const TArray<uint8>& Heights,
 		const uint32 Height, const uint32 Width, const FVector& VertScale);
 
 	static uint8 CalculateNodeToSkip(const uint32 TextureHeight, const uint32 TextureWidth);
@@ -110,6 +111,8 @@ private:
 	UPROPERTY(EditAnywhere)
 	TArray<TObjectPtr<AWorkerActor>> Workers;
 
+	UPROPERTY(EditAnywhere)
+	float NoiseFrequency = 0.01f;
 	TArray<FColor> TextureColors;
 
 	std::atomic_uint8_t FinishedWorkersCounter = 0;
