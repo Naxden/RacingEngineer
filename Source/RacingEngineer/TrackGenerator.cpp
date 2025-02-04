@@ -166,6 +166,7 @@ void ATrackGenerator::SpawnTrackBasedOnPreparedData(TArray<FTrackSplineSpawnData
 
 				SplineMeshComponent->SetStaticMesh(TrackMesh);
 				SplineMeshComponent->SetMobility(EComponentMobility::Stationary);
+				SplineMeshComponent->SetCastShadow(false);
 				SplineMeshComponent->CreationMethod = EComponentCreationMethod::UserConstructionScript;
 				SplineMeshComponent->RegisterComponentWithWorld(GetWorld());
 				SplineMeshComponent->AttachToComponent(GetRootComponent(), FAttachmentTransformRules::KeepRelativeTransform);
