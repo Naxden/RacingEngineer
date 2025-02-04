@@ -19,8 +19,8 @@ ATerrainGenerator::ATerrainGenerator()
 	if (ProceduralMesh != nullptr)
 	{
 		ProceduralMesh->SetCanEverAffectNavigation(false);
+		SetRootComponent(ProceduralMesh);
 	}
-	ProceduralMesh->SetupAttachment(GetRootComponent());
 
 	TerrainWalls.Reserve(4);
 	
@@ -38,12 +38,26 @@ ATerrainGenerator::ATerrainGenerator()
 		}
 	}
 
-	GrassFoliageComponent = CreateDefaultSubobject<UFoliageInstancedStaticMeshComponent>(TEXT("GrassFoliageComponent"));
+	GrassFoliageComponent = CreateDefaultSubobject<UFoliageInstancedStaticMeshComponent>(TEXT("GrassFoliageInstancedStaticMesh"));
 	if (GrassFoliageComponent != nullptr)
 	{
 		GrassFoliageComponent->SetupAttachment(GetRootComponent());
 		GrassFoliageComponent->SetCanEverAffectNavigation(false);
 		GrassFoliageComponent->SetVisibility(true);
+	}
+
+	RockInstancedStaticMeshComponent = CreateDefaultSubobject<UHierarchicalInstancedStaticMeshComponent>(TEXT("RockInstancedStaticMesh"));
+	if (RockInstancedStaticMeshComponent != nullptr)
+	{
+		RockInstancedStaticMeshComponent->SetupAttachment(GetRootComponent());
+		RockInstancedStaticMeshComponent->SetVisibility(true);
+	}
+
+	TreesInstancedStaticMeshComponent = CreateDefaultSubobject<UHierarchicalInstancedStaticMeshComponent>(TEXT("TreesInstancedStaticMesh"));
+	if (TreesInstancedStaticMeshComponent != nullptr)
+	{
+		TreesInstancedStaticMeshComponent->SetupAttachment(GetRootComponent());
+		TreesInstancedStaticMeshComponent->SetVisibility(true);
 	}
 }
 
@@ -91,10 +105,9 @@ void ATerrainGenerator::DoWork(const FWorkerData& Data, const FOnWorkFinished Ca
 
 		SetupWalls(Data.TextureWidth, Data.TextureHeight, Data.VertScale);
 
-		SpawnGrassFoliage(GrassFoliageLocations);
-
-		SpawnActors(RocksLocations, RockBlueprintClass);
-		SpawnActors(TreesLocations, TreeBlueprintClass);
+		SpawnInstancedMeshes(GrassFoliageLocations, GrassFoliageComponent, false);
+		SpawnInstancedMeshes(RocksLocations, RockInstancedStaticMeshComponent, true);
+		SpawnInstancedMeshes(TreesLocations, TreesInstancedStaticMeshComponent, true);
 
 		if (Callback.IsBound())
 		{
@@ -262,45 +275,31 @@ void ATerrainGenerator::SetupWalls(const uint32 TextureWidth, const uint32 Textu
 	}
 }
 
-void ATerrainGenerator::SpawnGrassFoliage(TArray<FVector>& Locations)
+void ATerrainGenerator::SpawnInstancedMeshes(TArray<FVector>& Locations, UInstancedStaticMeshComponent* InstancedStaticMeshComponent, bool bUpdateNavigation)
 {
-	if (GrassFoliageComponent != nullptr)
+	if (InstancedStaticMeshComponent != nullptr)
 	{
+		TArray<FTransform> Transforms;
+		Transforms.Reserve(Locations.Num());
+
 		for (const FVector& Location : Locations)
 		{
 			float RandomScale = FMath::RandRange(0.5, 3.0);
 			float RandomYaw = FMath::RandRange(0, 360);
-			FTransform GrassTransform(Location);
+			FTransform Transform(Location);
 
-			GrassTransform.SetScale3D(FVector(RandomScale));
-			GrassTransform.SetRotation(FRotator(0, RandomYaw, 0).Quaternion());
+			Transform.SetScale3D(FVector(RandomScale));
+			Transform.SetRotation(FRotator(0, RandomYaw, 0).Quaternion());
 
-			GrassFoliageComponent->AddInstance(GrassTransform, true);
+			Transforms.Emplace(Transform);
 		}
 
+		InstancedStaticMeshComponent->AddInstances(Transforms, false, true);
 		Locations.Empty();
 	}
 	else
 	{
 		UE_LOG(LogTemp, Error, TEXT("ATerrainGenerator::SpawnFoliage GrassFoliageComponent is nullptr"));
-	}
-}
-
-void ATerrainGenerator::SpawnActors(TArray<FVector>& Locations, const TSubclassOf<AActor>& ActorClass)
-{
-	if (ActorClass != nullptr)
-	{
-		for (const FVector& Location : Locations)
-		{
-			float RandomYaw = FMath::RandRange(0, 360);
-
-			GetWorld()->SpawnActor<AActor>(ActorClass, Location, FRotator(0, RandomYaw, 0));
-		}
-		Locations.Empty();
-	}
-	else
-	{
-		UE_LOG(LogTemp, Error, TEXT("ATerrainGenerator::SpawnActors ActorClass is nullptr"));
 	}
 }
 

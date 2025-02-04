@@ -7,6 +7,7 @@
 #include "GameFramework/Actor.h"
 #include "TerrainGenerator.generated.h"
 
+class UHierarchicalInstancedStaticMeshComponent;
 class UFoliageInstancedStaticMeshComponent;
 class ATrackGenerator;
 class USplineComponent;
@@ -80,8 +81,7 @@ public:
 
 	void TryAddFoliageLocation(const FVector& LocationToSpawn);
 
-	void SpawnGrassFoliage(TArray<FVector>& Locations);
-	void SpawnActors(TArray<FVector>& Locations, const TSubclassOf<AActor>& ActorClass);
+	void SpawnInstancedMeshes(TArray<FVector>& Locations, UInstancedStaticMeshComponent* InstancedStaticMeshComponent, bool bUpdateNavigation);
 
 protected:
 	// Called when the game starts or when spawned
@@ -135,13 +135,13 @@ private:
 	TArray<FVector> GrassFoliageLocations;
 
 	UPROPERTY(EditAnywhere)
-	TSubclassOf<AActor> RockBlueprintClass;
+	UHierarchicalInstancedStaticMeshComponent* RockInstancedStaticMeshComponent;
 	UPROPERTY(EditAnywhere)
 	float RocksProbability = 0.0f;
 	TArray<FVector> RocksLocations;
 
 	UPROPERTY(EditAnywhere)
-	TSubclassOf<AActor> TreeBlueprintClass;
+	UHierarchicalInstancedStaticMeshComponent* TreesInstancedStaticMeshComponent;
 	UPROPERTY(EditAnywhere)
 	float TreesProbability = 0.0f;
 	TArray<FVector> TreesLocations;
