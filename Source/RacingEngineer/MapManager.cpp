@@ -323,9 +323,10 @@ TArray<FVector2D> AMapManager::CreateTrack(const TArray<FColor>& HeightTextureCo
 
 FTrackNode AMapManager::FindFirstTrackNode(const TArray<FColor>& HeightTextureColors, const uint32 TextureHeight, const uint32 TextureWidth)
 {
-	for (uint32 y = TextureHeight * 3 / 4; y < TextureHeight; y++)
+	// search from the bottom left corner
+	for (uint32 y = TextureHeight - 1; y > 0 / 2; y--)
 	{
-		for (uint32 x = 0; x < TextureWidth / 2; x++)
+		for (uint32 x = 0; x < TextureWidth; x++)
 		{
 			FColor pixelColor = HeightTextureColors[y * TextureWidth + x];
 
