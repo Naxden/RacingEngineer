@@ -4,6 +4,7 @@
 #include "TerrainGenerator.h"
 #include "ProceduralMeshComponent.h"
 #include "KismetProceduralMeshLibrary.h"
+#include "RacingEngineerGameInstance.h"
 #include "TrackGenerator.h"
 #include "Components/SplineComponent.h"
 #include "Runtime/Foliage/Public/FoliageInstancedStaticMeshComponent.h"
@@ -81,6 +82,17 @@ void ATerrainGenerator::DoWork(const FWorkerData& Data, const FOnWorkFinished Ca
 	GrassFoliageProbability *= VertScaleXYNum / VerticesNum;
 	RocksProbability *= VertScaleXYNum / VerticesNum;
 	TreesProbability *= VertScaleXYNum / VerticesNum;
+
+	URacingEngineerGameInstance* RacingEngineerGameInstance = Cast<URacingEngineerGameInstance>(GetGameInstance());
+	if (RacingEngineerGameInstance != nullptr)
+	{
+		if (RacingEngineerGameInstance->bLightWeightMode)
+		{
+			GrassFoliageProbability /= 3.0;
+			RocksProbability /= 3.0;
+			TreesProbability /= 3.0;
+		}
+	}
 
 	GrassFoliageLocations.Reserve(VerticesNum * GrassFoliageProbability);
 	RocksLocations.Reserve(VerticesNum * RocksProbability);

@@ -62,16 +62,13 @@ public:
 	virtual void Tick(float DeltaTime) override;
 
 	UFUNCTION(BlueprintCallable)
-	void InitializeMap(bool StartedFromMainMenu = false);
+	void InitializeMap();
 
 	UPROPERTY(BlueprintAssignable)
 	FOnInitializationUpdate OnInitializationUpdate;
 
 	UFUNCTION(BlueprintCallable)
 	void MovePlayerToStart();
-
-	UFUNCTION(BlueprintCallable)
-	void SetHeightMapTexture(UTexture2D* Texture);
 
 	TArray<FColor> GetColorsFromTexture(UTexture2D* Texture);
 	static TArray<uint8> GenerateHeightFromNoise(const uint32 TextureHeight, const uint32 TextureWidth, const float Frequency, const int32 Seed = 42);
@@ -100,7 +97,7 @@ private:
 	USplineComponent* SplineComponent;
 
 	UPROPERTY(EditAnywhere)
-	UTexture2D* HeightMapTexture;
+	UTexture2D* TrackTexture;
 
 	UPROPERTY(EditAnywhere)
 	uint8 NodeToSkip = 1;

@@ -24,4 +24,10 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GameInstance")
 	TObjectPtr<URacingEngineerSaveGame> SelectedSaveSlot;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GameInstance")
+	bool bLightWeightMode = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GameInstance")
+	int32 Seed = 42;
 };

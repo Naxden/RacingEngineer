@@ -9,6 +9,7 @@
 #include "Async/Async.h"
 #include "WorkerActor.h"
 #include "FastNoiseWrapper.h"
+#include "RacingEngineerGameInstance.h"
 
 // Sets default values
 AMapManager::AMapManager()
@@ -30,54 +31,68 @@ void AMapManager::BeginPlay()
 
 }
 
-void AMapManager::InitializeMap(bool StartedFromMainMenu)
+void AMapManager::InitializeMap()
 {
-
-	if (HeightMapTexture != nullptr && SplineComponent != nullptr)
+	URacingEngineerGameInstance* RacingEngineerGameInstance = Cast<URacingEngineerGameInstance>(GetGameInstance());
+	if (RacingEngineerGameInstance != nullptr)
 	{
-		const uint32 MapManagerTimer = FPlatformTime::Cycles();
-
-		TextureHeight = HeightMapTexture->GetSizeX();
-		TextureWidth = HeightMapTexture->GetSizeY();
-		TextureColors = GetColorsFromTexture(HeightMapTexture);
-
-		SplineComponent->ClearSplinePoints();
-
-		if (StartedFromMainMenu)
+		if (RacingEngineerGameInstance->bStartedFromMainMenu)
 		{
-			NodeToSkip = CalculateNodeToSkip(TextureHeight, TextureWidth);
-			VertSpacingScale = CalculateVertScale(TextureHeight, TextureWidth);
+			TrackTexture = RacingEngineerGameInstance->SelectedMapTexture;
 		}
 
-		const int32 Seed = FMath::RandRange(-1000, 1000);
-		TArray<uint8> GeneratedHeights = GenerateHeightFromNoise(TextureHeight, TextureWidth, NoiseFrequency, Seed);
-
-		TrackNodes = CreateTrack(TextureColors, TextureHeight, TextureWidth, NodeToSkip);
-		CreateTrackSpline(SplineComponent, TrackNodes, GeneratedHeights, TextureHeight, TextureWidth, VertSpacingScale);
-
-		const uint32 MapManagerTimerStop = FPlatformTime::Cycles();
-
-		UE_LOG(LogTemp, Warning, TEXT("MapManager elapsed time %fms"), 
-			FPlatformTime::ToMilliseconds(MapManagerTimerStop - MapManagerTimer));
-
-		TSharedRef<FWorkerData> WorkerData = MakeShared<FWorkerData>(GeneratedHeights, TextureWidth, TextureHeight, SplineComponent, VertSpacingScale);
-
-		for (const TObjectPtr<AWorkerActor>& Worker : Workers)
+		if (TrackTexture != nullptr && SplineComponent != nullptr)
 		{
-			if (Worker != nullptr)
+			const uint32 MapManagerTimer = FPlatformTime::Cycles();
+
+			TextureHeight = TrackTexture->GetSizeX();
+			TextureWidth = TrackTexture->GetSizeY();
+			TextureColors = GetColorsFromTexture(TrackTexture);
+
+			SplineComponent->ClearSplinePoints();
+
+			int32 Seed = 0;
+			if (RacingEngineerGameInstance->bStartedFromMainMenu)
 			{
-				AsyncTask(ENamedThreads::AnyBackgroundThreadNormalTask, [&Worker, this, WorkerData]
-				{
-						Worker->DoWork(WorkerData.Get(), FOnWorkFinished::CreateUObject(this, &AMapManager::WorkerFinished));
-				});
+				NodeToSkip = CalculateNodeToSkip(TextureHeight, TextureWidth);
+				VertSpacingScale = CalculateVertScale(TextureHeight, TextureWidth);
+				Seed = RacingEngineerGameInstance->Seed;
 			}
-		}
 
-		//TODO finish properly if no workers
+			Seed = Seed == 0 ? FMath::RandRange(-1000, 1000) : Seed;
+			TArray<uint8> GeneratedHeights = GenerateHeightFromNoise(TextureHeight, TextureWidth, NoiseFrequency, Seed);
+
+			TrackNodes = CreateTrack(TextureColors, TextureHeight, TextureWidth, NodeToSkip);
+			CreateTrackSpline(SplineComponent, TrackNodes, GeneratedHeights, TextureHeight, TextureWidth, VertSpacingScale);
+
+			const uint32 MapManagerTimerStop = FPlatformTime::Cycles();
+
+			UE_LOG(LogTemp, Warning, TEXT("MapManager elapsed time %fms"),
+				FPlatformTime::ToMilliseconds(MapManagerTimerStop - MapManagerTimer));
+
+			TSharedRef<FWorkerData> WorkerData = MakeShared<FWorkerData>(GeneratedHeights, TextureWidth, TextureHeight, SplineComponent, VertSpacingScale);
+
+			for (const TObjectPtr<AWorkerActor>& Worker : Workers)
+			{
+				if (Worker != nullptr)
+				{
+					AsyncTask(ENamedThreads::AnyBackgroundThreadNormalTask, [&Worker, this, WorkerData]
+						{
+							Worker->DoWork(WorkerData.Get(), FOnWorkFinished::CreateUObject(this, &AMapManager::WorkerFinished));
+						});
+				}
+			}
+
+			//TODO finish properly if no workers
+		}
+		else
+		{
+			UE_LOG(LogTemp, Error, TEXT("AMapManager::BeginPlay() HeightMapTexture or SplineComponent is nullptr"))
+		}
 	}
 	else
 	{
-		UE_LOG(LogTemp, Error, TEXT("AMapManager::BeginPlay() HeightMapTexture or SplineComponent is nullptr"))
+		UE_LOG(LogTemp, Error, TEXT("AMapManager::InitializeMap() RacingEngineerGameInstance is nullptr"));
 	}
 }
 
@@ -138,11 +153,6 @@ void AMapManager::MovePlayerToStart()
 	{
 		UE_LOG(LogTemp, Error, TEXT("AMapManager::SetPlayerStartLocation() SplineComponent was nullptr"));
 	}
-}
-
-void AMapManager::SetHeightMapTexture(UTexture2D* Texture)
-{
-	HeightMapTexture = Texture;
 }
 
 // Called every frame
