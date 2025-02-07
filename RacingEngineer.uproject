@@ -11,7 +11,8 @@
 			"AdditionalDependencies": [
 				"Engine",
 				"UMG",
-				"GeometryFramework"
+				"GeometryFramework",
+				"CoreUObject"
 			]
 		}
 	],
@@ -28,16 +29,17 @@
 			]
 		},
 		{
-			"Name": "RawInput",
-			"Enabled": true
-		},
-		{
 			"Name": "VisualStudioTools",
 			"Enabled": true,
 			"MarketplaceURL": "com.epicgames.launcher://ue/marketplace/product/362651520df94e4fa65492dbcba44ae2",
 			"SupportedTargetPlatforms": [
 				"Win64"
 			]
+		},
+		{
+			"Name": "FastNoiseGenerator",
+			"Enabled": true,
+			"MarketplaceURL": "com.epicgames.launcher://ue/marketplace/content/527737f42da544e9abf8607a40495fbd"
 		}
 	]
 }
